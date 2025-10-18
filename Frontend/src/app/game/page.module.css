@@ -63,7 +63,7 @@ body {
     margin: 10px;
 }
 
-#round-counter {
+#roundCounter {
     position: relative;
     width: 200px;
     font-size: 35px;
@@ -79,7 +79,7 @@ body {
     top: 0px;
 }
 
-#guess-overlay {
+#guessOverlay {
     position: absolute;
     bottom: 0;
     z-index: 2;
@@ -117,8 +117,9 @@ body {
 }
 
 #scoreScreen button,
-#guess-overlay button {
+#guessOverlay button {
     height: 40px;
+    font-family: "baloo 2";
     background-color: var(--burntorange);
     border-radius: 10px;
     border: none;
@@ -132,7 +133,7 @@ body {
 }
 
 #scoreScreen button:hover,
-#guess-overlay button:hover {
+#guessOverlay button:hover {
     background-color: var(--burntorangeHover);
 }
 
