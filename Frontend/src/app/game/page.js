@@ -1,3 +1,4 @@
+
 "use client"
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
@@ -46,8 +47,6 @@ const SCORE_BAR_COLORS = {
 }
 
 const DEFAULT_POSITION = { lat: 0, lng: 0 }
-const TIMER_WARNING_SECONDS = 30
-const TIMER_TICK_SECONDS = 10
 
 function calculateDistance(lat1, lon1, lat2, lon2) {
     const R = 6371
@@ -236,8 +235,12 @@ function useScoreBarAnimation(show, score, onComplete) {
     }, [score])
 
     useEffect(() => {
-        if (!show || !canvasRef.current || effectiveScore === 0) {
+        if (!show || !canvasRef.current) {
             if (!show && onComplete) onComplete()
+            return
+        }
+        if (effectiveScore === 0) {
+            if (onComplete) onComplete()
             return
         }
 
@@ -433,6 +436,13 @@ function GuessMap({
         transition: 'width 0.3s ease, height 0.3s ease'
     }), [isExpanded])
 
+    const buttonStyle = useMemo(() => ({
+        width: isExpanded ? '600px' : '400px',
+        marginLeft: '200px', 
+        float: "right",
+        transition: "0.3s ease"
+    }), [isExpanded])
+
     const handleMapLoad = useCallback((map) => {
         mapInstanceRef.current = map
         map.setCenter(MAP_CENTER)
@@ -483,7 +493,7 @@ function GuessMap({
                     disableDefaultUI: true
                 }}
             />
-            <button style={{ width: "400px", marginLeft: "200px" }} onClick={onSubmitGuess}>
+            <button style={buttonStyle} onClick={onSubmitGuess}>
                 Submit guess!
             </button>
         </div>
@@ -614,8 +624,7 @@ export default function Gameplay() {
     const [currentRound, setCurrentRound] = useState(1)
     const [isMapExpanded, setIsMapExpanded] = useState(false)
     const panoramaRef = useRef(null)
-    const scoreAddStartedRef = useRef(false)
-    const hasMarkerPlacedRef = useRef(false)
+    
 
     const { isLoaded } = useJsApiLoader({
         id: 'google-map-script',
@@ -623,12 +632,7 @@ export default function Gameplay() {
         libraries: GOOGLE_MAPS_LIBRARIES
     })
 
-    const { playEffect, startMusic, ensureAudio, startScoreAdd, stopScoreAdd } = useAudio()
-
-    useEffect(() => {
-        ensureAudio()
-        startMusic()
-    }, [ensureAudio, startMusic])
+    const { playEffect, startScoreAdd, stopScoreAdd } = useAudio()
 
     const { goalPoint, findValidPanorama, zoomIn, zoomOut } = useStreetViewPanorama(isLoaded, panoramaRef)
     const gameLogic = useGameLogic(goalPoint)
@@ -637,36 +641,31 @@ export default function Gameplay() {
         () => handleSubmitGuess()
     )
 
-    const stopScoreAudio = useCallback(() => {
-        if (scoreAddStartedRef.current) {
-            scoreAddStartedRef.current = false
-            stopScoreAdd()
-        }
-    }, [stopScoreAdd])
+    // No audio stop helper needed; no score-fill audio
 
     const handleSubmitGuess = useCallback(() => {
-        playEffect("submit")
         gameLogic.submitGuess()
         setCurrentRound(prev => prev + 1)
         setShowScoreScreen(true)
-        setTimeout(() => playEffect("score"), 100)
-    }, [gameLogic, playEffect])
+        // Restart and slightly delay score-fill sound to avoid race with UI updates
+        try { stopScoreAdd() } catch {}
+        setTimeout(() => { try { startScoreAdd() } catch {} }, 60)
+    }, [gameLogic, startScoreAdd, stopScoreAdd])
 
     const handleMapClick = useCallback((position) => {
-        playEffect("place")
+        playEffect()
         gameLogic.setUserGuess(position)
-        hasMarkerPlacedRef.current = true
     }, [gameLogic, playEffect])
 
     const handleScoreBarComplete = useCallback(() => {
-        stopScoreAudio()
-    }, [stopScoreAudio])
+        // Stop score-fill audio when the bar completes
+        try { stopScoreAdd() } catch {}
+    }, [stopScoreAdd])
 
     const startRound = useCallback(() => {
         if (currentRound > MAX_ROUNDS) return
 
-        stopScoreAudio()
-        playEffect("place")
+        playEffect()
         const randomPoint = getRandomPoint()
         const newGoalPoint = createPosition(randomPoint.lat, randomPoint.long)
 
@@ -674,37 +673,8 @@ export default function Gameplay() {
         setShowScoreScreen(false)
         resetTimer(INITIAL_TIMER_SECONDS)
         findValidPanorama(newGoalPoint)
-        hasMarkerPlacedRef.current = false
-    }, [currentRound, gameLogic, resetTimer, findValidPanorama, playEffect, stopScoreAudio])
+    }, [currentRound, gameLogic, resetTimer, findValidPanorama, playEffect])
 
-    useEffect(() => {
-        if (showScoreScreen && gameLogic.score) {
-            stopScoreAdd()
-            scoreAddStartedRef.current = false
-            if (hasMarkerPlacedRef.current) {
-                const timer = setTimeout(() => {
-                    if (showScoreScreen && gameLogic.score && hasMarkerPlacedRef.current) {
-                        scoreAddStartedRef.current = true
-                        startScoreAdd()
-                    }
-                }, 50)
-                return () => {
-                    clearTimeout(timer)
-                    stopScoreAdd()
-                }
-            }
-        } else if (!showScoreScreen) {
-            stopScoreAudio()
-            scoreAddStartedRef.current = false
-        }
-    }, [showScoreScreen, gameLogic.score, currentRound, startScoreAdd, stopScoreAdd, stopScoreAudio])
-
-    useEffect(() => {
-        if (showScoreScreen) return
-        if (timerSeconds === TIMER_WARNING_SECONDS || (timerSeconds > 0 && timerSeconds <= TIMER_TICK_SECONDS)) {
-            playEffect("tick")
-        }
-    }, [timerSeconds, showScoreScreen, playEffect])
 
     return (
         <div className={styles.umbrella} style={styles}>
