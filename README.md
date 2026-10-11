@@ -18,3 +18,7 @@ Workflow:
   - `git add .`
   - `git commit -m "<Description of what you added>"`
   - `git push`
+
+## Getting started
+
+See [Docs/RUN.md](Docs/RUN.md) for setup, configuration and known issues.

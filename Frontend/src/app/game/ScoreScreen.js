@@ -3,9 +3,13 @@ import { useRef, useState, useEffect, useCallback } from 'react'
 import styles from "./page.module.css"
 import { GoogleMap, MarkerF, PolylineF } from "@react-google-maps/api"
 
-let im = new Image()
-im.crossOrigin = "anonymous"
-im.src = localStorage.getItem("profilePic")
+// Image/localStorage only exist in the browser; this module is also evaluated during SSR
+let im = null
+if (typeof window !== "undefined") {
+    im = new Image()
+    im.crossOrigin = "anonymous"
+    im.src = localStorage.getItem("profilePic")
+}
 let userIcon = -1
 const SCORE_BAR_COLORS = {
     background: "#3e5ab3",
