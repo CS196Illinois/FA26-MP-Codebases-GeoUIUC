@@ -69,22 +69,24 @@ To open it in VS Code: `code .`
 
 ## 3. Add the config files
 
-GeoUIUC needs one config file, which course staff post on PrairieLearn: **`geouiuc.env.local`**.
-It holds the Firebase and Google Maps settings. It is **not** in this repo on purpose.
+GeoUIUC needs one config file from PrairieLearn: **`GeoUIUC-config.env`**.
+It holds the Firebase (login and database) and Google Maps settings. It is **not** in this
+repo on purpose.
 
-1. Download `geouiuc.env.local` from PrairieLearn into your **Downloads** folder.
+1. Download `GeoUIUC-config.env` from PrairieLearn into your **Downloads** folder.
 2. In your terminal, inside the project folder, copy it into place:
 
    **macOS / Linux**
    ```bash
-   cp ~/Downloads/geouiuc.env.local Frontend/.env.local
+   cp ~/Downloads/GeoUIUC-config.env Frontend/.env.local
    ```
    **Windows (PowerShell)**
    ```powershell
-   Copy-Item $HOME\Downloads\geouiuc.env.local Frontend\.env.local
+   Copy-Item $HOME\Downloads\GeoUIUC-config.env Frontend\.env.local
    ```
 
-The file name starts with a dot (`.env.local`), so your file browser may hide it. That's normal.
+It must be named exactly `.env.local` inside `Frontend/`, because that's the name Next.js looks for.
+The name starts with a dot, so your file browser may hide it. That's normal.
 
 ---
 
