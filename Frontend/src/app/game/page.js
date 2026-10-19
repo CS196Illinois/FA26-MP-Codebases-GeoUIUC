@@ -7,6 +7,7 @@ import styles from "./page.module.css"
 import { useAudio } from '@/components/AudioProvider'
 import ScoreScreen from './ScoreScreen.js'
 import GuessMap from './GuessMap.js'
+import { FRESHMAN_PLACES, MAJORS } from './orientation-data.js'
 import { auth, db} from '@/components/firebase-config.js'
 import { doc, updateDoc, increment, getDoc } from 'firebase/firestore'
 
@@ -75,8 +76,45 @@ function formatDistanceText(distance, hasGuess) {
         : `You didn't place a guess - 0pts!`
 }
 
+// Orientation modes (see Docs/orientation/README.md). The lobby stores the choice in
+// localStorage as "classic", "freshman" or "major:<id>".
+const PLACE_RADIUS_METERS = 100
+
+function getModePlaces() {
+    const mode = localStorage.getItem("gameMode") || "classic"
+    if (mode === "freshman") return FRESHMAN_PLACES
+    if (mode.startsWith("major:")) {
+        const major = MAJORS.find(m => m.id === mode.slice(6))
+        return major?.buildings.length ? major.buildings : null
+    }
+    return null
+}
+
+// Calls done(point, placeName, radius). Falls back to a random campus point
+// (placeName null) for classic mode or when geocoding fails.
+function pickRoundLocation(done) {
+    const randomPoint = getRandomPoint()
+    const fallback = () => done(createPosition(randomPoint.lat, randomPoint.long), null, 1000)
+    const places = getModePlaces()
+    if (!places || !window.google?.maps?.Geocoder) return fallback()
+
+    const name = places[Math.floor(Math.random() * places.length)]
+    new window.google.maps.Geocoder().geocode(
+        { address: `${name}, University of Illinois Urbana-Champaign` },
+        (results, status) => {
+            if (status !== "OK" || !results?.length) {
+                console.warn(`Geocoding "${name}" failed (${status}); using a random point`)
+                return fallback()
+            }
+            const loc = results[0].geometry.location
+            done(createPosition(loc.lat(), loc.lng()), name, PLACE_RADIUS_METERS)
+        }
+    )
+}
+
 function useStreetViewPanorama(isLoaded, panoramaRef) {
     const [goalPoint, setGoalPoint] = useState(null)
+    const [placeName, setPlaceName] = useState(null)
     const panoramaInstanceRef = useRef(null)
 
     const ensurePanoramaInitialized = useCallback(() => {
@@ -95,7 +133,8 @@ function useStreetViewPanorama(isLoaded, panoramaRef) {
         }
     }, [panoramaRef])
 
-    const findValidPanorama = useCallback((initialPoint) => {
+    const findValidPanorama = useCallback((initialPoint, name = null, radius = 1000) => {
+        setPlaceName(name)
         if (!window.google?.maps) return
 
         ensurePanoramaInitialized()
@@ -105,6 +144,7 @@ function useStreetViewPanorama(isLoaded, panoramaRef) {
             const isGoogleStreetView = data.copyright?.indexOf("Google") >= 0
 
             if (!isGoogleStreetView) {
+                setPlaceName(null)  // no longer at the named place
                 const randomPoint = getRandomPoint()
                 const newPoint = createPosition(randomPoint.lat, randomPoint.long)
                 setGoalPoint(newPoint)
@@ -137,7 +177,16 @@ function useStreetViewPanorama(isLoaded, panoramaRef) {
             }
         }
 
-        service.getPanorama({ location: initialPoint, radius: 1000 }).then(processPanorama)
+        service.getPanorama({ location: initialPoint, radius })
+            .then(processPanorama)
+            .catch(() => {
+                // No Street View near this place: fall back to a random campus point
+                setPlaceName(null)
+                const randomPoint = getRandomPoint()
+                service.getPanorama({ location: createPosition(randomPoint.lat, randomPoint.long), radius: 1000 })
+                    .then(processPanorama)
+                    .catch(error => console.error("No Street View found:", error))
+            })
     }, [ensurePanoramaInitialized])
 
     const adjustPanoramaZoom = useCallback((delta) => {
@@ -154,13 +203,13 @@ function useStreetViewPanorama(isLoaded, panoramaRef) {
         if (!isLoaded || !window.google) return
 
         ensurePanoramaInitialized()
-        const randomPoint = getRandomPoint()
-        const point = createPosition(randomPoint.lat, randomPoint.long)
-        setGoalPoint(point)
-        findValidPanorama(point)
+        pickRoundLocation((point, name, radius) => {
+            setGoalPoint(point)
+            findValidPanorama(point, name, radius)
+        })
     }, [isLoaded, ensurePanoramaInitialized, findValidPanorama])
 
-    return { goalPoint, findValidPanorama, zoomIn, zoomOut }
+    return { goalPoint, placeName, findValidPanorama, zoomIn, zoomOut }
 }
 
 function useTimer(initialSeconds, onTimeout) {
@@ -301,7 +350,7 @@ export default function Gameplay() {
 
     const { playEffect, startScoreAdd, stopScoreAdd } = useAudio()
 
-    const { goalPoint, findValidPanorama, zoomIn, zoomOut } = useStreetViewPanorama(isLoaded, panoramaRef)
+    const { goalPoint, placeName, findValidPanorama, zoomIn, zoomOut } = useStreetViewPanorama(isLoaded, panoramaRef)
     const gameLogic = useGameLogic(goalPoint)
     const { seconds: timerSeconds, reset: resetTimer, formatted: timerText } = useTimer(
         INITIAL_TIMER_SECONDS,
@@ -333,13 +382,10 @@ export default function Gameplay() {
         if (currentRound > MAX_ROUNDS) return
 
         playEffect()
-        const randomPoint = getRandomPoint()
-        const newGoalPoint = createPosition(randomPoint.lat, randomPoint.long)
-
         gameLogic.resetGuess()
         setShowScoreScreen(false)
         resetTimer(INITIAL_TIMER_SECONDS)
-        findValidPanorama(newGoalPoint)
+        pickRoundLocation((point, name, radius) => findValidPanorama(point, name, radius))
     }, [currentRound, gameLogic, resetTimer, findValidPanorama, playEffect])
 
 
@@ -369,6 +415,7 @@ export default function Gameplay() {
                 guessInfo={gameLogic.guessInfo}
                 goalPoint={gameLogic.submittedGoal}
                 guessPoint={gameLogic.submittedGuess}
+                placeName={placeName}
                 isLoaded={isLoaded}
                 onNextRound={startRound}
                 onScoreBarComplete={handleScoreBarComplete}

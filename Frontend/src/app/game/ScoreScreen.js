@@ -11,6 +11,7 @@ if (typeof window !== "undefined") {
     im.src = localStorage.getItem("profilePic")
 }
 let userIcon = -1
+let userIconHasPhoto = false
 const SCORE_BAR_COLORS = {
     background: "#3e5ab3",
     track: "#5b6369",
@@ -35,6 +36,7 @@ export default function ScoreScreen({
     guessInfo,
     goalPoint,
     guessPoint,
+    placeName,
     isLoaded,
     onNextRound,
     onScoreBarComplete,
@@ -71,11 +73,14 @@ export default function ScoreScreen({
 
     const mapCenter = getMapCenter(goalPoint, guessPoint)
     const mapZoom = getMapZoom(distance)
-    if (userIcon == -1) {
+    // Rebuild the cached icon once if the photo finishes loading after the first build
+    const photoReady = isPhotoReady()
+    if (userIcon == -1 || (!userIconHasPhoto && photoReady)) {
         userIcon = {
-            url: calculateDataURL(),
+            url: calculateDataURL(photoReady),
             scaledSize: new google.maps.Size(50, 50)
         }
+        userIconHasPhoto = photoReady
     }
     const flagIcon = {
         url: "flag.png",
@@ -130,7 +135,9 @@ export default function ScoreScreen({
                     )}
                 </GoogleMap>
             )}
-            <div id={styles["roundInformation"]}></div>
+            <div id={styles["roundInformation"]}>
+                {placeName && <h2>This was: {placeName}</h2>}
+            </div>
             <div id={styles["scoreBar"]}>
                 <div id={styles["score"]}>{score}</div>
                 <canvas
@@ -267,7 +274,13 @@ function getMapZoom(distance) {
     if (distance > 5) return 12
     if (distance > 1) return 14
     return 16
-} function calculateDataURL() {
+}
+// drawImage throws on an image that failed to load ('broken' state), so only
+// draw the profile picture once it has actually loaded with real pixels
+function isPhotoReady() {
+    return Boolean(im?.complete && im.naturalWidth > 0)
+}
+function calculateDataURL(drawPhoto) {
     let canvas = document.body.appendChild(document.createElement("canvas"))
     let scrn = canvas.getContext("2d")
     console.log(im)
@@ -286,12 +299,14 @@ function getMapZoom(distance) {
     scrn.closePath()
     scrn.fill()
 
-    scrn.beginPath()
-    scrn.ellipse(50, 50, 25, 25, Math.PI, 0, Math.PI * 2)
-    scrn.closePath()
-    scrn.clip("nonzero")
-    scrn.drawImage(im, 25, 25, 50, 50)
-    scrn.closePath()
+    if (drawPhoto) {
+        scrn.beginPath()
+        scrn.ellipse(50, 50, 25, 25, Math.PI, 0, Math.PI * 2)
+        scrn.closePath()
+        scrn.clip("nonzero")
+        scrn.drawImage(im, 25, 25, 50, 50)
+        scrn.closePath()
+    }
 
     // console.log(canvas)
 
