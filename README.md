@@ -243,6 +243,36 @@ hours. Error messages are the most useful clue.
 
 ---
 
+## Campus orientation feature (in progress)
+
+An addition to help new students learn the campus buildings they will actually use.
+
+- **Building names:** after each guess, the score screen will show the name of the
+  correct place.
+- **Freshman Mode:** rounds come only from places almost every first-year student uses,
+  regardless of major. There are 28 locations: 15 residence hall groups (with the dining
+  halls inside them), the Ikenberry Dining Center, the Main and Grainger libraries, the
+  Illini Union, ARC, CRCE, McKinley Health Center, and 6 landmarks from the official
+  Self-Guided Quad Tour. A place is included only if it is listed on the official website
+  of the UIUC unit responsible for it. Classroom buildings are left to Major Mode.
+- **Major Mode:** pick Computer Science or one of the 16 CS + X majors, and rounds come
+  from the buildings where that major's core courses have in-person lectures (Fall 2026
+  schedule, or Spring 2026 for courses not offered in the fall).
+
+**How to use it:** in the lobby, pick a mode from the **Game Mode** menu (Classic,
+Freshman Mode, or a major under Major Mode), then click **Start Game!**. In Freshman and
+Major Mode, the score screen shows "This was: <place name>". The choice is saved in the
+browser (`localStorage` key `gameMode`). Each round's place is located with the Google
+Maps Geocoder and the nearest Street View within 100 m. If either step fails, the round
+falls back to a random campus spot with no name shown.
+
+The research, selection criteria, sources and known limitations are in
+[`Docs/orientation/README.md`](Docs/orientation/README.md). The Freshman Mode criteria and
+full list are in
+[`Docs/orientation/freshman-buildings.md`](Docs/orientation/freshman-buildings.md).
+
+---
+
 ## Original team (Fall 2025)
 
 ### Group 3

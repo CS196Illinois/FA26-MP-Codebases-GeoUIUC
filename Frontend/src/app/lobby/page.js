@@ -7,6 +7,7 @@ import { auth, db } from "@/components/firebase-config";
 import { onAuthStateChanged } from "firebase/auth";
 import { useState, useRef, useEffect } from "react";
 import { doc, getDoc } from 'firebase/firestore'
+import { MAJORS } from "@/app/game/orientation-data.js";
 
 function StartButton() {
   const router = useRouter();
@@ -18,6 +19,33 @@ function StartButton() {
     >
       <div className={styles.buttonText}>Start Game!</div>
     </button>
+  );
+}
+
+// Orientation mode picker; the game reads "gameMode" from localStorage
+// (see Docs/orientation/README.md)
+function ModeSelect() {
+  const [mode, setMode] = useState("classic");
+  useEffect(() => {
+    setMode(localStorage.getItem("gameMode") || "classic");
+  }, []);
+  const handleChange = (e) => {
+    setMode(e.target.value);
+    localStorage.setItem("gameMode", e.target.value);
+  };
+  return (
+    <label className={styles["App-para"]}>
+      Game Mode:{" "}
+      <select value={mode} onChange={handleChange} style={{ fontSize: "1rem" }}>
+        <option value="classic">Classic (random campus spot)</option>
+        <option value="freshman">Freshman Mode</option>
+        <optgroup label="Major Mode">
+          {MAJORS.map((m) => (
+            <option key={m.id} value={`major:${m.id}`}>{m.name}</option>
+          ))}
+        </optgroup>
+      </select>
+    </label>
   );
 }
 
@@ -162,7 +190,7 @@ export default function Lobby() {
             alt="logo"
           />
 
-          <p className={styles["App-para"]}>Game Mode: Outdoor</p>
+          <ModeSelect />
         </header>
         <div className={styles.logoContainer}>
         <StartButton />
