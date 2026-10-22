@@ -21,7 +21,9 @@ const MAP_CENTER = { lat: 40.108252, lng: -88.22699 }
 const MAX_ROUNDS = 3
 const MAX_SCORE = 5000
 const INITIAL_TIMER_SECONDS = 119
-const GOOGLE_MAPS_LIBRARIES = ['places']
+const MAX_PANORAMA_ATTEMPTS = 10
+// Only the core Maps + Street View API is used; extra libraries just slow the first load
+const GOOGLE_MAPS_LIBRARIES = []
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 
 const DEFAULT_POSITION = { lat: 0, lng: 0 }
@@ -77,6 +79,7 @@ function formatDistanceText(distance, hasGuess) {
 
 function useStreetViewPanorama(isLoaded, panoramaRef) {
     const [goalPoint, setGoalPoint] = useState(null)
+    const [isLoading, setIsLoading] = useState(true)
     const panoramaInstanceRef = useRef(null)
 
     const ensurePanoramaInitialized = useCallback(() => {
@@ -88,6 +91,8 @@ function useStreetViewPanorama(isLoaded, panoramaRef) {
 
         try {
             panoramaInstanceRef.current = new window.google.maps.StreetViewPanorama(container)
+            // Fires once setPano has resolved the new panorama, so the loading screen can come down
+            panoramaInstanceRef.current.addListener('status_changed', () => setIsLoading(false))
             return true
         } catch (error) {
             console.error("Error initializing panorama:", error)
@@ -99,16 +104,37 @@ function useStreetViewPanorama(isLoaded, panoramaRef) {
         if (!window.google?.maps) return
 
         ensurePanoramaInitialized()
+        setIsLoading(true)
         const service = new window.google.maps.StreetViewService()
+        let attempts = 0
+
+        // Asking for official Google imagery up front avoids extra round trips for user photospheres
+        const requestPanorama = (point) => {
+            attempts += 1
+            setGoalPoint(point)
+            service.getPanorama({
+                location: point,
+                radius: 1000,
+                sources: [window.google.maps.StreetViewSource.GOOGLE]
+            }).then(processPanorama, retryWithNewPoint)
+        }
+
+        // getPanorama rejects with ZERO_RESULTS when nothing is in range; without a retry the screen stays black
+        const retryWithNewPoint = () => {
+            if (attempts >= MAX_PANORAMA_ATTEMPTS) {
+                console.error("Could not find a Street View panorama on campus")
+                setIsLoading(false)
+                return
+            }
+            const randomPoint = getRandomPoint()
+            requestPanorama(createPosition(randomPoint.lat, randomPoint.long))
+        }
 
         const processPanorama = ({ data }) => {
             const isGoogleStreetView = data.copyright?.indexOf("Google") >= 0
 
             if (!isGoogleStreetView) {
-                const randomPoint = getRandomPoint()
-                const newPoint = createPosition(randomPoint.lat, randomPoint.long)
-                setGoalPoint(newPoint)
-                service.getPanorama({ location: newPoint, radius: 1000 }).then(processPanorama)
+                retryWithNewPoint()
                 return
             }
 
@@ -122,6 +148,8 @@ function useStreetViewPanorama(isLoaded, panoramaRef) {
             const panorama = panoramaInstanceRef.current
             if (panorama && typeof panorama.setPano === 'function') {
                 try {
+                    // Same pano as last round won't fire status_changed, so clear loading here
+                    if (panorama.getPano() === data.location.pano) setIsLoading(false)
                     panorama.setPano(data.location.pano)
                     panorama.setVisible(true)
                     panorama.setOptions({
@@ -133,11 +161,12 @@ function useStreetViewPanorama(isLoaded, panoramaRef) {
                     })
                 } catch (error) {
                     console.error("Error setting panorama:", error)
+                    setIsLoading(false)
                 }
             }
         }
 
-        service.getPanorama({ location: initialPoint, radius: 1000 }).then(processPanorama)
+        requestPanorama(initialPoint)
     }, [ensurePanoramaInitialized])
 
     const adjustPanoramaZoom = useCallback((delta) => {
@@ -156,14 +185,13 @@ function useStreetViewPanorama(isLoaded, panoramaRef) {
         ensurePanoramaInitialized()
         const randomPoint = getRandomPoint()
         const point = createPosition(randomPoint.lat, randomPoint.long)
-        setGoalPoint(point)
         findValidPanorama(point)
     }, [isLoaded, ensurePanoramaInitialized, findValidPanorama])
 
-    return { goalPoint, findValidPanorama, zoomIn, zoomOut }
+    return { goalPoint, isLoading, findValidPanorama, zoomIn, zoomOut }
 }
 
-function useTimer(initialSeconds, onTimeout) {
+function useTimer(initialSeconds, onTimeout, isPaused) {
     const [seconds, setSeconds] = useState(initialSeconds)
     const onTimeoutRef = useRef(onTimeout)
 
@@ -172,6 +200,9 @@ function useTimer(initialSeconds, onTimeout) {
     }, [onTimeout])
 
     useEffect(() => {
+        // Paused while the panorama loads and on the score screen, so the timeout
+        // can't re-submit a guess that is already showing
+        if (isPaused) return
         if (seconds <= 0) {
             onTimeoutRef.current()
             return
@@ -182,7 +213,7 @@ function useTimer(initialSeconds, onTimeout) {
         }, 1000)
 
         return () => clearInterval(interval)
-    }, [seconds])
+    }, [seconds, isPaused])
 
     const reset = useCallback((newSeconds = initialSeconds) => {
         setSeconds(newSeconds)
@@ -301,23 +332,26 @@ export default function Gameplay() {
 
     const { playEffect, startScoreAdd, stopScoreAdd } = useAudio()
 
-    const { goalPoint, findValidPanorama, zoomIn, zoomOut } = useStreetViewPanorama(isLoaded, panoramaRef)
+    const {
+        goalPoint,
+        isLoading: isPanoramaLoading,
+        findValidPanorama,
+        zoomIn,
+        zoomOut
+    } = useStreetViewPanorama(isLoaded, panoramaRef)
     const gameLogic = useGameLogic(goalPoint)
     const { seconds: timerSeconds, reset: resetTimer, formatted: timerText } = useTimer(
         INITIAL_TIMER_SECONDS,
-        () => handleSubmitGuess()
+        () => handleSubmitGuess(),
+        showScoreScreen || isPanoramaLoading
     )
 
-    // No audio stop helper needed; no score-fill audio
-
+    // The score-fill sound is started/stopped by ScoreScreen's bar animation, not here
     const handleSubmitGuess = useCallback(() => {
         gameLogic.submitGuess()
         setCurrentRound(prev => prev + 1)
         setShowScoreScreen(true)
-        // Restart and slightly delay score-fill sound to avoid race with UI updates
-        try { stopScoreAdd() } catch { }
-        setTimeout(() => { try { startScoreAdd() } catch { } }, 60)
-    }, [gameLogic, startScoreAdd, stopScoreAdd])
+    }, [gameLogic])
 
     const handleMapClick = useCallback((position) => {
         playEffect()
@@ -350,6 +384,9 @@ export default function Gameplay() {
                 ref={panoramaRef}
                 style={{ width: "100vw", height: "100vh" }}
             />
+            {isPanoramaLoading && !showScoreScreen && (
+                <div id={styles["panoramaLoading"]}>Finding a spot on campus...</div>
+            )}
             <UIOverlay timerText={timerText} currentRound={currentRound} />
             <ControlOverlay onZoomIn={zoomIn} onZoomOut={zoomOut} />
             {!showScoreScreen && (
@@ -371,6 +408,7 @@ export default function Gameplay() {
                 guessPoint={gameLogic.submittedGuess}
                 isLoaded={isLoaded}
                 onNextRound={startRound}
+                onScoreBarStart={startScoreAdd}
                 onScoreBarComplete={handleScoreBarComplete}
                 currentRound={currentRound}
             />

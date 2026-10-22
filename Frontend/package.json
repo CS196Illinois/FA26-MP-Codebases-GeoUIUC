@@ -21,6 +21,7 @@
     "react-router-dom": "^7.9.4"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.2.0"
+    "@biomejs/biome": "2.2.0",
+    "baseline-browser-mapping": "^2.11.30"
   }
 }
