@@ -2,15 +2,23 @@ import { useRouter } from 'next/navigation'
 import { useRef, useState, useEffect, useCallback } from 'react'
 import styles from "./page.module.css"
 import { GoogleMap, MarkerF, PolylineF } from "@react-google-maps/api"
+import { MAP_CENTER } from "./GuessMap.js"
 
 // Image/localStorage only exist in the browser; this module is also evaluated during SSR
 let im = null
 if (typeof window !== "undefined") {
-    im = new Image()
-    im.crossOrigin = "anonymous"
-    im.src = localStorage.getItem("profilePic")
+    const profilePic = localStorage.getItem("profilePic")
+    // Not logged in on this origin -> null; setting src to null would request "/null" and 404
+    if (profilePic && profilePic !== "null") {
+        im = new Image()
+        im.crossOrigin = "anonymous"
+        // Google's avatar host can reject requests with a localhost Referer (lobby/profile <img> do the same)
+        im.referrerPolicy = "no-referrer"
+        im.src = profilePic
+    }
 }
 let userIcon = -1
+let userIconHasPhoto = false
 const SCORE_BAR_COLORS = {
     background: "#3e5ab3",
     track: "#5b6369",
@@ -71,7 +79,9 @@ export default function ScoreScreen({
 
     const mapCenter = getMapCenter(goalPoint, guessPoint)
     const mapZoom = getMapZoom(distance)
-    if (userIcon == -1) {
+    // Rebuild once the photo finishes loading, so a slow first load doesn't leave a plain pin all game
+    if (userIcon == -1 || (!userIconHasPhoto && isProfilePicLoaded())) {
+        userIconHasPhoto = isProfilePicLoaded()
         userIcon = {
             url: calculateDataURL(),
             scaledSize: new google.maps.Size(50, 50)
@@ -267,8 +277,13 @@ function getMapZoom(distance) {
     if (distance > 5) return 12
     if (distance > 1) return 14
     return 16
-} function calculateDataURL() {
-    let canvas = document.body.appendChild(document.createElement("canvas"))
+}
+function isProfilePicLoaded() {
+    return Boolean(im?.complete && im.naturalWidth > 0)
+}
+function calculateDataURL() {
+    // Offscreen canvas: toDataURL doesn't need it in the page, and appending would leave one behind per call
+    let canvas = document.createElement("canvas")
     let scrn = canvas.getContext("2d")
     console.log(im)
 
@@ -290,7 +305,10 @@ function getMapZoom(distance) {
     scrn.ellipse(50, 50, 25, 25, Math.PI, 0, Math.PI * 2)
     scrn.closePath()
     scrn.clip("nonzero")
-    scrn.drawImage(im, 25, 25, 50, 50)
+    // drawImage throws on a broken image, so only draw the photo once it actually loaded
+    if (isProfilePicLoaded()) {
+        scrn.drawImage(im, 25, 25, 50, 50)
+    }
     scrn.closePath()
 
     // console.log(canvas)
