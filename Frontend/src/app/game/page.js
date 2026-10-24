@@ -47,11 +47,10 @@ function formatTimer(seconds) {
     return `${minutes}:${secs}`
 }
 
-function calculateScore(distance, maxDistance = MAX_DISTANCE_IN_BOUNDS) {
-    console.log(maxDistance)
-    const normalizedDistance = distance / maxDistance
-    console.log(normalizedDistance)
-    return Math.max(0, Math.floor(MAX_SCORE * (1 - normalizedDistance)))
+const SCORE_DECAY_KM = 1.0 // distance at which the score drops to ~37% of MAX_SCORE
+
+function calculateScore(distance) {
+    return Math.floor(MAX_SCORE * Math.exp(-distance / SCORE_DECAY_KM))
 }
 
 function getMapZoom(distance) {
