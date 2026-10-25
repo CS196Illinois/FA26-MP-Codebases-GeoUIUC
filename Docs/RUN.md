@@ -63,6 +63,5 @@ package.json (root)       leftover from the prototype; install from Frontend/
 
 ## Known issues
 
-- Visiting `/profile` while signed out throws `Cannot read properties of null (reading 'uid')`.
 - `src/app/game/page-backup.js` and `Frontend/allfiles.txt` are leftovers.
 - `.history/` contains editor auto-save copies committed by accident.
