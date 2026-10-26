@@ -5,8 +5,9 @@ import styles from "./page.module.css";
 import LoginButton from "../../components/LoginButton.js";
 import { useRouter } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { auth, db } from "../../components/firebase-config";
+import { buildUserWrite } from "../../components/userDoc.js";
 
 // Move videos array outside component so it doesn't recreate on every render
 const videos = [
@@ -30,34 +31,23 @@ export default function Login() {
         // User is signed in.
         const userRef = doc(db, "users", user.uid);
 
-        // Define the template data for a new or existing user document.
-        const templateUserData = {
-          // Essential Auth data, directly from the user object
-          email: user.email,
-          displayName: user.displayName,
-          // profilePicture is already here, pulling from user.photoURL
-          profilePicture: user.photoURL,
-
-          // Application-specific fields with default "blank" values
-          highScore: 0,
-          totalPoints: 0,
-          dailyStreak: 0,
-
-          // New fields as requested:
-          bio: "", // Initialize bio as an empty string
-          recentScores: [0, 0, 0, 0, 0], // Array of 5 individual ints initialized to 0
-          userID: user.uid, // Store the user's UID explicitly
-
-          // Timestamps for metadata:
-          createdAt: user.metadata.creationTime
-            ? new Date(user.metadata.creationTime)
-            : null,
-        };
-
         try {
-          await setDoc(userRef, templateUserData, { merge: true });
+          // Only create the template for new players; writing it every time
+          // reset returning players' highScore and totalPoints to 0.
+          const snap = await getDoc(userRef);
+          const { isNew, data } = buildUserWrite(
+            snap.exists() ? snap.data() : null,
+            user
+          );
+          if (isNew) {
+            await setDoc(userRef, data);
+          } else {
+            await updateDoc(userRef, data);
+          }
           console.log(
-            "User document created/updated (template applied) successfully for UID:",
+            isNew
+              ? "User document created for UID:"
+              : "User profile info refreshed for UID:",
             user.uid
           );
 
