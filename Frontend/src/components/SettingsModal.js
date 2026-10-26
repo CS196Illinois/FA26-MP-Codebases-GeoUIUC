@@ -26,6 +26,7 @@ import { useRouter, usePathname } from "next/navigation"; // use for navigation 
 import { useAudio, useAudioVolumes } from "./AudioProvider";
 import { auth } from "./firebase-config";
 import { signOut, onAuthStateChanged } from "firebase/auth";
+import { auth } from "./firebase-config";
 export default function SettingsModal() {
   // useState allows the variable to be changed (i.e. allows the user to close/open menu)
   // use "open" to read the state and "setOpen" to set the state, false (closed) by default

@@ -1,5 +1,6 @@
 "use client";
 import "./googlebutton.css";
+import { signInWithGoogle } from "./firebase-config";
 
 import React from "react";
 import { signInWithGoogle } from "./firebase-config";

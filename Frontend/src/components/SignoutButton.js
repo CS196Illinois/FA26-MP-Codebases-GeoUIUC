@@ -1,5 +1,7 @@
 import styles from "./Signout.module.css"
 import { useRouter} from "next/navigation";
+import { signOut } from "firebase/auth";
+import { auth } from "./firebase-config";
 
 export default function SignOut() {
     const router = useRouter();

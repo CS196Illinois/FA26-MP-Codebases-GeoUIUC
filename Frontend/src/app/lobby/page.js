@@ -2,7 +2,6 @@
 
 import styles from "./page.module.css";
 import { useRouter } from "next/navigation";
-import signInWithGoogle  from "@/components/firebase-config";
 import { auth, db } from "@/components/firebase-config";
 import { onAuthStateChanged } from "firebase/auth";
 import { useState, useRef, useEffect } from "react";

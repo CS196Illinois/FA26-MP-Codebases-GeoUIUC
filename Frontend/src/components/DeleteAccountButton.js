@@ -1,7 +1,8 @@
 
 import { auth } from "../components/firebase-config";
 import { deleteUser } from "firebase/auth";
-import { useRouter} from "next/navigation"; 
+import { useRouter} from "next/navigation";
+import { auth } from "./firebase-config";
 
 import styles from "./DeleteAccount.module.css"
 import Popup from "./ConfirmDeletePopUp";
