@@ -7,7 +7,8 @@
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "biome check",
-    "format": "biome format --write"
+    "format": "biome format --write",
+    "test": "node --test src/app/game/pinImage.test.mjs"
   },
   "dependencies": {
     "@googlemaps/markerclusterer": "^2.6.2",

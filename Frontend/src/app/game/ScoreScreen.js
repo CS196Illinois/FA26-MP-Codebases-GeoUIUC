@@ -2,13 +2,21 @@ import { useRouter } from 'next/navigation'
 import { useRef, useState, useEffect, useCallback } from 'react'
 import styles from "./page.module.css"
 import { GoogleMap, MarkerF, PolylineF } from "@react-google-maps/api"
+import { pickPinImage } from "./pinImage.mjs"
 
 // Image/localStorage only exist in the browser; this module is also evaluated during SSR
 let im = null
+let defaultIm = null
 if (typeof window !== "undefined") {
-    im = new Image()
-    im.crossOrigin = "anonymous"
-    im.src = localStorage.getItem("profilePic")
+    // profilePic is only set after Google sign-in, so guests and signed-out players have none
+    const profilePic = localStorage.getItem("profilePic")
+    if (profilePic) {
+        im = new Image()
+        im.crossOrigin = "anonymous"
+        im.src = profilePic
+    }
+    defaultIm = new Image()
+    defaultIm.src = "/profile-icon.png"
 }
 let userIcon = -1
 const SCORE_BAR_COLORS = {
@@ -290,7 +298,11 @@ function getMapZoom(distance) {
     scrn.ellipse(50, 50, 25, 25, Math.PI, 0, Math.PI * 2)
     scrn.closePath()
     scrn.clip("nonzero")
-    scrn.drawImage(im, 25, 25, 50, 50)
+    // drawImage throws on a missing or broken image, which crashed the whole score screen
+    const pinImage = pickPinImage(im, defaultIm)
+    if (pinImage) {
+        scrn.drawImage(pinImage, 25, 25, 50, 50)
+    }
     scrn.closePath()
 
     // console.log(canvas)
