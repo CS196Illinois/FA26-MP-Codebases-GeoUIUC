@@ -1,9 +1,58 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Each player can only read and write their own profile document
+    // Each player can only read and write their own profile document.
+    // Scores are written from the browser, so these rules reject impossible
+    // values. They can't stop a player sending a believable score (e.g. 5000
+    // every round); that would need the server to pick and score each round.
     match /users/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+      function isOwner() {
+        return request.auth != null && request.auth.uid == uid;
+      }
+
+      // One round is worth 0-5000 points (MAX_SCORE in src/app/game/page.js)
+      function isRoundScore(value) {
+        return value is int && value >= 0 && value <= 5000;
+      }
+
+      // highScores.<difficulty>; ids match src/app/game/difficulty.js
+      function isValidHighScores(scores) {
+        return scores is map
+          && scores.keys().hasOnly(['easy', 'medium', 'hard', 'veryHard'])
+          && (!('easy' in scores) || isRoundScore(scores.easy))
+          && (!('medium' in scores) || isRoundScore(scores.medium))
+          && (!('hard' in scores) || isRoundScore(scores.hard))
+          && (!('veryHard' in scores) || isRoundScore(scores.veryHard));
+      }
+
+      // totalPoints can only go up, by at most one round's worth per write
+      function isValidTotalPoints() {
+        let before = resource.data.get('totalPoints', 0);
+        let after = request.resource.data.get('totalPoints', 0);
+        return after is int && after >= before && after - before <= 5000;
+      }
+
+      allow read: if isOwner();
+
+      // New players must start from the blank template in src/app/login/page.js
+      allow create: if isOwner()
+        && request.resource.data.keys().hasOnly([
+          'email', 'displayName', 'profilePicture', 'highScores', 'totalPoints',
+          'dailyStreak', 'bio', 'recentScores', 'userID', 'createdAt'])
+        && request.resource.data.userID == uid
+        && request.resource.data.totalPoints == 0
+        && request.resource.data.dailyStreak == 0
+        && request.resource.data.recentScores == [0, 0, 0, 0, 0]
+        && request.resource.data.highScores == {'easy': 0, 'medium': 0, 'hard': 0, 'veryHard': 0};
+
+      // After that, the browser may only refresh profile info and record scores
+      allow update: if isOwner()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'email', 'displayName', 'profilePicture', 'totalPoints', 'highScores'])
+        && isValidTotalPoints()
+        && isValidHighScores(request.resource.data.get('highScores', {}));
+
+      allow delete: if isOwner();
     }
   }
 }

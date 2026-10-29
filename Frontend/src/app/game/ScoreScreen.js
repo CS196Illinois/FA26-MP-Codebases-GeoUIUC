@@ -290,7 +290,11 @@ function getMapZoom(distance) {
     scrn.ellipse(50, 50, 25, 25, Math.PI, 0, Math.PI * 2)
     scrn.closePath()
     scrn.clip("nonzero")
-    scrn.drawImage(im, 25, 25, 50, 50)
+    // The profile photo can fail to load (no photo saved, or Google refusing
+    // the request). drawImage throws on a broken image, so fall back to a plain pin.
+    if (im && im.complete && im.naturalWidth > 0) {
+        scrn.drawImage(im, 25, 25, 50, 50)
+    }
     scrn.closePath()
 
     // console.log(canvas)

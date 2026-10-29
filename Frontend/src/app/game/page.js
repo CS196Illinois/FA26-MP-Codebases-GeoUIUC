@@ -1,12 +1,14 @@
 "use client"
-import { useRef, useState, useEffect, useCallback } from 'react'
+import { useRef, useState, useEffect, useCallback, Suspense } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { useJsApiLoader } from "@react-google-maps/api"
 import { getRandomPoint } from "./test-scripts/randpoint.js"
 import styles from "./page.module.css"
 import { useAudio } from '@/components/AudioProvider'
 import ScoreScreen from './ScoreScreen.js'
 import GuessMap from './GuessMap.js'
+import { DIFFICULTIES, getDifficultyId, getHighScore } from './difficulty.js'
 import { auth, db} from '@/components/firebase-config.js'
 import { doc, updateDoc, increment, getDoc } from 'firebase/firestore'
 
@@ -20,7 +22,6 @@ const CAMPUS_MAP_BOUNDS = {
 const MAP_CENTER = { lat: 40.108252, lng: -88.22699 }
 const MAX_ROUNDS = 3
 const MAX_SCORE = 5000
-const INITIAL_TIMER_SECONDS = 119
 const GOOGLE_MAPS_LIBRARIES = ['places']
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 
@@ -75,7 +76,7 @@ function formatDistanceText(distance, hasGuess) {
         : `You didn't place a guess - 0pts!`
 }
 
-function useStreetViewPanorama(isLoaded, panoramaRef) {
+function useStreetViewPanorama(isLoaded, panoramaRef, canMove) {
     const [goalPoint, setGoalPoint] = useState(null)
     const panoramaInstanceRef = useRef(null)
 
@@ -124,9 +125,14 @@ function useStreetViewPanorama(isLoaded, panoramaRef) {
                 try {
                     panorama.setPano(data.location.pano)
                     panorama.setVisible(true)
+                    // Without movement the player can still look around and zoom.
+                    // linksControl = arrows, clickToGo = clicking the road,
+                    // keyboardShortcuts = arrow keys
                     panorama.setOptions({
                         zoomControl: true,
-                        linksControl: true,
+                        linksControl: canMove,
+                        clickToGo: canMove,
+                        keyboardShortcuts: canMove,
                         addressControl: false,
                         panControl: false,
                         showRoadLabels: false
@@ -138,7 +144,7 @@ function useStreetViewPanorama(isLoaded, panoramaRef) {
         }
 
         service.getPanorama({ location: initialPoint, radius: 1000 }).then(processPanorama)
-    }, [ensurePanoramaInitialized])
+    }, [ensurePanoramaInitialized, canMove])
 
     const adjustPanoramaZoom = useCallback((delta) => {
         const panorama = panoramaInstanceRef.current
@@ -191,7 +197,7 @@ function useTimer(initialSeconds, onTimeout) {
     return { seconds, reset, formatted: formatTimer(seconds) }
 }
 
-function useGameLogic(goalPoint) {
+function useGameLogic(goalPoint, difficulty) {
     const [userGuess, setUserGuess] = useState(DEFAULT_POSITION)
     const [submittedGuess, setSubmittedGuess] = useState(null)
     const [submittedGoal, setSubmittedGoal] = useState(null)
@@ -221,12 +227,12 @@ function useGameLogic(goalPoint) {
                 const docSnap = await getDoc(docRef);
                 try {
                     if (calculatedScore != undefined) {
-                        await updateDoc(docRef, {
-                        totalPoints: increment(calculatedScore)
-                        }); 
-                        if (calculatedScore > docSnap.get("highScore")) {
-                            await updateDoc(docRef, {highScore: calculatedScore})
+                        // One write, so firestore.rules can check the whole round at once
+                        const updates = { totalPoints: increment(calculatedScore) }
+                        if (calculatedScore > getHighScore(docSnap.data(), difficulty)) {
+                            updates[`highScores.${difficulty}`] = calculatedScore
                         }
+                        await updateDoc(docRef, updates)
                     }
                 } catch (error) {
                     console.error("Error updating scores", error);
@@ -234,12 +240,12 @@ function useGameLogic(goalPoint) {
             }
         };
         updateInfo()
-        
+
         setScore(`${calculatedScore}pts`)
         setGuessInfo(formatDistanceText(distance, hasGuess))
         setSubmittedGoal(goalPoint)
         setSubmittedGuess(guessPosition || DEFAULT_POSITION)
-    }, [goalPoint, userGuess])
+    }, [goalPoint, userGuess, difficulty])
 
     const resetGuess = useCallback(() => {
         setUserGuess(DEFAULT_POSITION)
@@ -262,14 +268,14 @@ function useGameLogic(goalPoint) {
     }
 }
 
-function UIOverlay({ timerText, currentRound }) {
+function UIOverlay({ timerText, currentRound, difficultyLabel }) {
     return (
         <div id={styles["overlay"]}>
             <Link href="/lobby">
                 <img src="./logo.png" style={{ maxHeight: "60px" }} alt="Logo" />
             </Link>
             <div id={styles["timer"]}>{timerText}</div>
-            <div id={styles["roundCounter"]}>Round {currentRound}</div>
+            <div id={styles["roundCounter"]}>Round {currentRound} · {difficultyLabel}</div>
         </div>
     )
 }
@@ -286,7 +292,18 @@ function ControlOverlay({ onZoomIn, onZoomOut }) {
 
 
 
-export default function Gameplay() {
+// useSearchParams needs a Suspense boundary, or `next build` fails on this page
+export default function GamePage() {
+    return (
+        <Suspense fallback={null}>
+            <Gameplay />
+        </Suspense>
+    )
+}
+
+function Gameplay() {
+    const difficultyId = getDifficultyId(useSearchParams().get("difficulty"))
+    const difficulty = DIFFICULTIES[difficultyId]
     const [showScoreScreen, setShowScoreScreen] = useState(false)
     const [currentRound, setCurrentRound] = useState(1)
     const [isMapExpanded, setIsMapExpanded] = useState(false)
@@ -301,10 +318,10 @@ export default function Gameplay() {
 
     const { playEffect, startScoreAdd, stopScoreAdd } = useAudio()
 
-    const { goalPoint, findValidPanorama, zoomIn, zoomOut } = useStreetViewPanorama(isLoaded, panoramaRef)
-    const gameLogic = useGameLogic(goalPoint)
+    const { goalPoint, findValidPanorama, zoomIn, zoomOut } = useStreetViewPanorama(isLoaded, panoramaRef, difficulty.canMove)
+    const gameLogic = useGameLogic(goalPoint, difficultyId)
     const { seconds: timerSeconds, reset: resetTimer, formatted: timerText } = useTimer(
-        INITIAL_TIMER_SECONDS,
+        difficulty.seconds,
         () => handleSubmitGuess()
     )
 
@@ -338,9 +355,9 @@ export default function Gameplay() {
 
         gameLogic.resetGuess()
         setShowScoreScreen(false)
-        resetTimer(INITIAL_TIMER_SECONDS)
+        resetTimer(difficulty.seconds)
         findValidPanorama(newGoalPoint)
-    }, [currentRound, gameLogic, resetTimer, findValidPanorama, playEffect])
+    }, [currentRound, gameLogic, resetTimer, findValidPanorama, playEffect, difficulty.seconds])
 
 
     return (
@@ -350,7 +367,7 @@ export default function Gameplay() {
                 ref={panoramaRef}
                 style={{ width: "100vw", height: "100vh" }}
             />
-            <UIOverlay timerText={timerText} currentRound={currentRound} />
+            <UIOverlay timerText={timerText} currentRound={currentRound} difficultyLabel={difficulty.label} />
             <ControlOverlay onZoomIn={zoomIn} onZoomOut={zoomOut} />
             {!showScoreScreen && (
                 <GuessMap
