@@ -38,11 +38,27 @@ export default function ScoreScreen({
     isLoaded,
     onNextRound,
     onScoreBarComplete,
-    currentRound
+    currentRound,
+    isDaily,
+    totalScore,
+    shareText,
+    dailyStreak
 }) {
     const router = useRouter()
     const isGameComplete = currentRound > MAX_ROUNDS
     const scorebarRef = useScoreBarAnimation(show, score, onScoreBarComplete)
+    const [shareStatus, setShareStatus] = useState("idle")
+
+    const handleShare = useCallback(async () => {
+        if (!shareText) return
+        try {
+            await copyToClipboard(shareText)
+            setShareStatus("copied")
+        } catch (error) {
+            console.error("Error copying daily result", error)
+            setShareStatus("failed")
+        }
+    }, [shareText])
 
     const handleButtonClick = useCallback(() => {
         if (isGameComplete) {
@@ -71,11 +87,14 @@ export default function ScoreScreen({
 
     const mapCenter = getMapCenter(goalPoint, guessPoint)
     const mapZoom = getMapZoom(distance)
-    if (userIcon == -1) {
-        userIcon = {
+    let guessIcon = userIcon
+    if (guessIcon == -1) {
+        guessIcon = {
             url: calculateDataURL(),
             scaledSize: new google.maps.Size(50, 50)
         }
+        // Only keep the icon once it has the photo, so a later round can retry
+        if (isProfilePicReady()) userIcon = guessIcon
     }
     const flagIcon = {
         url: "flag.png",
@@ -115,7 +134,7 @@ export default function ScoreScreen({
                             <MarkerF
                                 position={guessPoint}
                                 title="Your Guess"
-                                icon={userIcon}
+                                icon={guessIcon}
                             />
                             <PolylineF
                                 path={[goalPoint, guessPoint]}
@@ -140,6 +159,15 @@ export default function ScoreScreen({
                     ref={scorebarRef}
                 />
                 <div id={styles["guessInfo"]}>{guessInfo}</div>
+                {isDaily && isGameComplete && (
+                    <div id={styles["dailySummary"]}>
+                        <div>Daily Challenge total: {totalScore} / {MAX_SCORE * MAX_ROUNDS}</div>
+                        {dailyStreak ? <div>🔥 {dailyStreak} day streak</div> : null}
+                        <button onClick={handleShare} disabled={!shareText}>
+                            {shareStatus === "copied" ? "Copied!" : shareStatus === "failed" ? "Couldn't copy - try again" : "Share result"}
+                        </button>
+                    </div>
+                )}
                 <button onClick={handleButtonClick}>
                     {isGameComplete ? "Game over - return to lobby" : "Start next!"}
                 </button>
@@ -241,6 +269,21 @@ function useScoreBarAnimation(show, score, onComplete) {
     return canvasRef
 }
 
+async function copyToClipboard(text) {
+    if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text)
+        return
+    }
+    // Fallback for browsers without the async clipboard API
+    const textarea = document.createElement("textarea")
+    textarea.value = text
+    document.body.appendChild(textarea)
+    textarea.select()
+    const ok = document.execCommand("copy")
+    textarea.remove()
+    if (!ok) throw new Error("Copy command failed")
+}
+
 function isDefaultPosition(position) {
     return position?.lat === 0 && position?.lng === 0
 }
@@ -267,7 +310,13 @@ function getMapZoom(distance) {
     if (distance > 5) return 12
     if (distance > 1) return 14
     return 16
-} function calculateDataURL() {
+}
+
+function isProfilePicReady() {
+    return Boolean(im && im.complete && im.naturalWidth > 0)
+}
+
+function calculateDataURL() {
     let canvas = document.body.appendChild(document.createElement("canvas"))
     let scrn = canvas.getContext("2d")
     console.log(im)
@@ -290,7 +339,14 @@ function getMapZoom(distance) {
     scrn.ellipse(50, 50, 25, 25, Math.PI, 0, Math.PI * 2)
     scrn.closePath()
     scrn.clip("nonzero")
-    scrn.drawImage(im, 25, 25, 50, 50)
+    // The profile picture can fail to load (no saved URL, or Google refused the request);
+    // drawing a broken image throws, so fall back to a plain marker
+    if (isProfilePicReady()) {
+        scrn.drawImage(im, 25, 25, 50, 50)
+    } else {
+        scrn.fillStyle = "#ffffff"
+        scrn.fill()
+    }
     scrn.closePath()
 
     // console.log(canvas)
