@@ -7,17 +7,43 @@ import { auth, db } from "@/components/firebase-config";
 import { onAuthStateChanged } from "firebase/auth";
 import { useState, useRef, useEffect } from "react";
 import { doc, getDoc } from 'firebase/firestore'
+import { DIFFICULTIES, DIFFICULTY_IDS, getHighScore } from "@/app/game/difficulty";
 
+// "Start Game!" swaps itself for the four difficulty choices
 function StartButton() {
   const router = useRouter();
+  const [choosing, setChoosing] = useState(false);
+
+  if (!choosing) {
+    return (
+      <button
+        className={styles.startButton}
+        onClick={() => setChoosing(true)}
+      >
+        <div className={styles.buttonText}>Start Game!</div>
+      </button>
+    );
+  }
 
   return (
-    <button
-      className={styles.startButton}
-      onClick={() => router.push("/game")}
-    >
-      <div className={styles.buttonText}>Start Game!</div>
-    </button>
+    <div className={styles.difficultyChooser}>
+      <div className={styles.difficultyGrid}>
+        {DIFFICULTY_IDS.map((id) => (
+          <button
+            key={id}
+            type="button"
+            className={styles.difficultyButton}
+            onClick={() => router.push(`/game?difficulty=${id}`)}
+          >
+            <div className={styles.buttonText}>{DIFFICULTIES[id].label}</div>
+            <div className={styles.difficultyDetail}>{DIFFICULTIES[id].description}</div>
+          </button>
+        ))}
+      </div>
+      <button type="button" className={styles.backButton} onClick={() => setChoosing(false)}>
+        Back
+      </button>
+    </div>
   );
 }
 
@@ -153,7 +179,12 @@ export default function Lobby() {
               className={styles["trophy"]}
               alt="trophy"
             />
-            <span>{docSnap ? docSnap.get("highScore") : 0}</span>
+            {/* Best score on any difficulty */}
+            <span>
+              {docSnap
+                ? Math.max(...DIFFICULTY_IDS.map((id) => getHighScore(docSnap.data(), id)))
+                : 0}
+            </span>
           </div>
 
           <img

@@ -10,6 +10,7 @@ import SignOut from "@/components/SignoutButton";
 import DeleteAccount from "@/components/DeleteAccountButton";
 import {auth, db} from "../../components/firebase-config"
 import { doc, getDoc } from 'firebase/firestore'
+import { DIFFICULTIES, DIFFICULTY_IDS, getHighScore } from "@/app/game/difficulty";
 
 export default function Profile() {
   const [profilePic, setProfilePic] = useState();
@@ -47,7 +48,12 @@ export default function Profile() {
         </div>
 
         <div className={styles.profileContainer2}>
-          <h1>High Score: {docSnap ? docSnap.get("highScore") : 0} </h1>
+          <h1>High Scores</h1>
+          {DIFFICULTY_IDS.map((id) => (
+            <h3 key={id}>
+              {DIFFICULTIES[id].label}: {docSnap ? getHighScore(docSnap.data(), id) : 0}
+            </h3>
+          ))}
           <h1>Total Points: {docSnap ? docSnap.get("totalPoints") : 0} </h1>
           <br></br>
           <div className={styles['button-container']}>

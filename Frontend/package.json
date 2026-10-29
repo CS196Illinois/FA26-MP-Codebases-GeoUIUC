@@ -7,6 +7,8 @@
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "biome check",
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/difficulty.test.mjs",
+    "test:rules": "firebase emulators:exec --config ../firebase.json --project demo-geouiuc --only firestore \"node --test tests/firestore.rules.test.mjs\"",
     "format": "biome format --write"
   },
   "dependencies": {
@@ -21,6 +23,8 @@
     "react-router-dom": "^7.9.4"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.2.0"
+    "@biomejs/biome": "2.2.0",
+    "@firebase/rules-unit-testing": "^5.0.2",
+    "firebase-tools": "^15.34.2"
   }
 }

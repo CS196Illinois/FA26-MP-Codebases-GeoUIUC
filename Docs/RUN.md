@@ -26,6 +26,8 @@ Other scripts (run from `Frontend/`):
 | `npm run build` / `npm start` | Production build / serve it |
 | `npm run lint` | Biome lint + format check |
 | `npm run format` | Biome auto-format |
+| `npm test` | Unit tests for the difficulty settings (`tests/difficulty.test.mjs`) |
+| `npm run test:rules` | Tests `firestore.rules` on a local Firestore emulator; needs [Java 21+](https://adoptium.net). Nothing is deployed |
 
 ## Configuration
 
@@ -42,8 +44,13 @@ They are protected by Firebase security rules and API-key restrictions, not by h
 ## External services
 
 - **Firebase Authentication**: Google sign-in (`src/components/firebase-config.js`)
-- **Cloud Firestore**: one document per player at `users/{uid}`. Access rules are in
-  [`firestore.rules`](../firestore.rules).
+- **Cloud Firestore**: one document per player at `users/{uid}`, holding `totalPoints` and a
+  best single-round score per difficulty in `highScores` (older accounts may also have a
+  single `highScore`, read as the Easy score). Access rules are in
+  [`firestore.rules`](../firestore.rules): players can only touch their own document, and
+  scores must be possible (0–5000 per round). Scores are still written from the browser, so
+  the rules can't stop someone sending a believable fake score. Rule changes only take effect
+  once deployed to the Firebase project.
 - **Google Maps JavaScript API**: map and Street View (`src/app/game/page.js`)
 
 ## Code map
@@ -53,16 +60,15 @@ Frontend/                 <- the actual app (Next.js App Router)
   src/app/
     page.js               home
     login/  lobby/  profile/
-    game/                 gameplay: page.js, ScoreScreen.js, result/
-    dev/                  scratch map page used during development
+    game/                 gameplay: page.js, GuessMap.js, ScoreScreen.js,
+                          difficulty.js (timer + movement per level)
   src/components/         shared UI, Firebase setup, audio, settings
   public/                 images, background videos, audio
-Firebase/, Project/       original HTML/JS prototype (not used by the Next.js app)
-package.json (root)       leftover from the prototype; install from Frontend/
+  tests/                  npm test / npm run test:rules
+firestore.rules           database access rules
+firebase.json             emulator config used by npm run test:rules
 ```
 
 ## Known issues
 
 - Visiting `/profile` while signed out throws `Cannot read properties of null (reading 'uid')`.
-- `src/app/game/page-backup.js` and `Frontend/allfiles.txt` are leftovers.
-- `.history/` contains editor auto-save copies committed by accident.

@@ -5,8 +5,9 @@ import styles from "./page.module.css";
 import LoginButton from "../../components/LoginButton.js";
 import { useRouter } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { auth, db } from "../../components/firebase-config";
+import { emptyHighScores } from "../game/difficulty.js";
 
 // Move videos array outside component so it doesn't recreate on every render
 const videos = [
@@ -39,7 +40,7 @@ export default function Login() {
           profilePicture: user.photoURL,
 
           // Application-specific fields with default "blank" values
-          highScore: 0,
+          highScores: emptyHighScores(),
           totalPoints: 0,
           dailyStreak: 0,
 
@@ -55,9 +56,20 @@ export default function Login() {
         };
 
         try {
-          await setDoc(userRef, templateUserData, { merge: true });
+          // Only brand-new players get the template. Writing it every time
+          // would reset an existing player's scores to 0 on each login.
+          const userSnap = await getDoc(userRef);
+          if (userSnap.exists()) {
+            await updateDoc(userRef, {
+              email: templateUserData.email,
+              displayName: templateUserData.displayName,
+              profilePicture: templateUserData.profilePicture,
+            });
+          } else {
+            await setDoc(userRef, templateUserData);
+          }
           console.log(
-            "User document created/updated (template applied) successfully for UID:",
+            "User document created/updated successfully for UID:",
             user.uid
           );
 
