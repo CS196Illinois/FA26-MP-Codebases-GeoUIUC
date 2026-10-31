@@ -1,14 +1,17 @@
-import { useRouter } from 'next/navigation'
-import { useRef, useState, useEffect, useCallback } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import styles from "./page.module.css"
 import { GoogleMap, MarkerF, PolylineF } from "@react-google-maps/api"
 
 // Image/localStorage only exist in the browser; this module is also evaluated during SSR
 let im = null
 if (typeof window !== "undefined") {
-    im = new Image()
-    im.crossOrigin = "anonymous"
-    im.src = localStorage.getItem("profilePic")
+    // Signed-out players have no profile picture; loading "null" as a URL would break drawImage
+    const profilePic = localStorage.getItem("profilePic")
+    if (profilePic) {
+        im = new Image()
+        im.crossOrigin = "anonymous"
+        im.src = profilePic
+    }
 }
 let userIcon = -1
 const SCORE_BAR_COLORS = {
@@ -16,7 +19,6 @@ const SCORE_BAR_COLORS = {
     track: "#5b6369",
     fill: "#cd870e"
 }
-const MAX_ROUNDS = 3
 const SCORE_BAR_CONFIG = {
     LINE_WIDTH: 50,
     LINE_Y: 35,
@@ -37,20 +39,12 @@ export default function ScoreScreen({
     guessPoint,
     isLoaded,
     onNextRound,
+    onEndGame,
     onScoreBarComplete,
-    currentRound
+    currentRound,
+    totalScore
 }) {
-    const router = useRouter()
-    const isGameComplete = currentRound > MAX_ROUNDS
     const scorebarRef = useScoreBarAnimation(show, score, onScoreBarComplete)
-
-    const handleButtonClick = useCallback(() => {
-        if (isGameComplete) {
-            router.push('/lobby')
-        } else {
-            onNextRound()
-        }
-    }, [isGameComplete, router, onNextRound])
 
     if (!show) {
         return (
@@ -130,7 +124,7 @@ export default function ScoreScreen({
                     )}
                 </GoogleMap>
             )}
-            <div id={styles["roundInformation"]}></div>
+            <div id={styles["roundInformation"]}>Round {currentRound} · Total: {totalScore}pts</div>
             <div id={styles["scoreBar"]}>
                 <div id={styles["score"]}>{score}</div>
                 <canvas
@@ -140,9 +134,10 @@ export default function ScoreScreen({
                     ref={scorebarRef}
                 />
                 <div id={styles["guessInfo"]}>{guessInfo}</div>
-                <button onClick={handleButtonClick}>
-                    {isGameComplete ? "Game over - return to lobby" : "Start next!"}
-                </button>
+                <div id={styles.scoreButtons}>
+                    <button type="button" onClick={onNextRound}>Next round</button>
+                    <button type="button" onClick={onEndGame}>End game</button>
+                </div>
             </div>
         </div>
     )
@@ -290,7 +285,10 @@ function getMapZoom(distance) {
     scrn.ellipse(50, 50, 25, 25, Math.PI, 0, Math.PI * 2)
     scrn.closePath()
     scrn.clip("nonzero")
-    scrn.drawImage(im, 25, 25, 50, 50)
+    // Without a loaded profile picture the marker is just the blue pin
+    if (im?.complete && im.naturalWidth > 0) {
+        scrn.drawImage(im, 25, 25, 50, 50)
+    }
     scrn.closePath()
 
     // console.log(canvas)

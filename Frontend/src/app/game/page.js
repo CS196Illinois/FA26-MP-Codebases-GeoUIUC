@@ -6,6 +6,7 @@ import { getRandomPoint } from "./test-scripts/randpoint.js"
 import styles from "./page.module.css"
 import { useAudio } from '@/components/AudioProvider'
 import ScoreScreen from './ScoreScreen.js'
+import GameSummary from './GameSummary.js'
 import GuessMap from './GuessMap.js'
 import { auth, db} from '@/components/firebase-config.js'
 import { doc, updateDoc, increment, getDoc } from 'firebase/firestore'
@@ -18,13 +19,13 @@ const CAMPUS_MAP_BOUNDS = {
 }
 
 const MAP_CENTER = { lat: 40.108252, lng: -88.22699 }
-const MAX_ROUNDS = 3
 const MAX_SCORE = 5000
 const INITIAL_TIMER_SECONDS = 119
 const GOOGLE_MAPS_LIBRARIES = ['places']
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 
 const DEFAULT_POSITION = { lat: 0, lng: 0 }
+const COMPASS_DIRECTIONS = ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"]
 
 function calculateDistance(lat1, lon1, lat2, lon2) {
     const R = 6371
@@ -68,11 +69,27 @@ function createPosition(lat, lng) {
 }
 
 
-function formatDistanceText(distance, hasGuess) {
+// Initial bearing from point 1 to point 2, in degrees clockwise from north (0-360)
+function calculateBearing(lat1, lon1, lat2, lon2) {
+    const lat1Rad = lat1 * Math.PI / 180
+    const lat2Rad = lat2 * Math.PI / 180
+    const dLon = (lon2 - lon1) * Math.PI / 180
+    const y = Math.sin(dLon) * Math.cos(lat2Rad)
+    const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) -
+        Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLon)
+    return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360
+}
+
+function getCompassDirection(bearing) {
+    return COMPASS_DIRECTIONS[Math.round(bearing / 45) % 8]
+}
+
+function formatDistanceText(distance, hasGuess, direction) {
     const distanceStr = distance.toFixed(2)
-    return hasGuess
-        ? `Your guess was ${distanceStr}km from the correct location!`
-        : `You didn't place a guess - 0pts!`
+    if (!hasGuess) return `You didn't place a guess - 0pts!`
+    // A direction means nothing when the guess is practically on top of the answer
+    if (distance < 0.05) return `Your guess was ${distanceStr}km from the correct location!`
+    return `The correct location was ${distanceStr}km ${direction} of your guess!`
 }
 
 function useStreetViewPanorama(isLoaded, panoramaRef) {
@@ -163,7 +180,7 @@ function useStreetViewPanorama(isLoaded, panoramaRef) {
     return { goalPoint, findValidPanorama, zoomIn, zoomOut }
 }
 
-function useTimer(initialSeconds, onTimeout) {
+function useTimer(initialSeconds, onTimeout, isPaused) {
     const [seconds, setSeconds] = useState(initialSeconds)
     const onTimeoutRef = useRef(onTimeout)
 
@@ -172,6 +189,9 @@ function useTimer(initialSeconds, onTimeout) {
     }, [onTimeout])
 
     useEffect(() => {
+        // Frozen while the score screen is up, so time spent reading results can't auto-submit again
+        if (isPaused) return
+
         if (seconds <= 0) {
             onTimeoutRef.current()
             return
@@ -182,7 +202,7 @@ function useTimer(initialSeconds, onTimeout) {
         }, 1000)
 
         return () => clearInterval(interval)
-    }, [seconds])
+    }, [seconds, isPaused])
 
     const reset = useCallback((newSeconds = initialSeconds) => {
         setSeconds(newSeconds)
@@ -214,6 +234,12 @@ function useGameLogic(goalPoint) {
             : MAX_DISTANCE_IN_BOUNDS
 
         const calculatedScore = calculateScore(distance)
+        const direction = guessPosition
+            ? getCompassDirection(calculateBearing(
+                guessPosition.lat, guessPosition.lng,
+                goalPoint.lat, goalPoint.lng
+            ))
+            : null
         const updateInfo = async () => {
             if (auth.currentUser != null) {
                 const user = auth.currentUser 
@@ -236,9 +262,10 @@ function useGameLogic(goalPoint) {
         updateInfo()
         
         setScore(`${calculatedScore}pts`)
-        setGuessInfo(formatDistanceText(distance, hasGuess))
+        setGuessInfo(formatDistanceText(distance, hasGuess, direction))
         setSubmittedGoal(goalPoint)
         setSubmittedGuess(guessPosition || DEFAULT_POSITION)
+        return calculatedScore
     }, [goalPoint, userGuess])
 
     const resetGuess = useCallback(() => {
@@ -288,7 +315,9 @@ function ControlOverlay({ onZoomIn, onZoomOut }) {
 
 export default function Gameplay() {
     const [showScoreScreen, setShowScoreScreen] = useState(false)
+    const [isGameOver, setIsGameOver] = useState(false)
     const [currentRound, setCurrentRound] = useState(1)
+    const [roundScores, setRoundScores] = useState([])
     const [isMapExpanded, setIsMapExpanded] = useState(false)
     const panoramaRef = useRef(null)
 
@@ -305,19 +334,25 @@ export default function Gameplay() {
     const gameLogic = useGameLogic(goalPoint)
     const { seconds: timerSeconds, reset: resetTimer, formatted: timerText } = useTimer(
         INITIAL_TIMER_SECONDS,
-        () => handleSubmitGuess()
+        () => handleSubmitGuess(),
+        showScoreScreen
     )
+    const totalScore = roundScores.reduce((sum, score) => sum + score, 0)
 
     // No audio stop helper needed; no score-fill audio
 
     const handleSubmitGuess = useCallback(() => {
-        gameLogic.submitGuess()
-        setCurrentRound(prev => prev + 1)
+        // A round is scored once; repeat submits would also re-add its points in Firestore
+        if (showScoreScreen) return
+        const roundScore = gameLogic.submitGuess()
+        // undefined means the panorama hasn't loaded yet, so there is nothing to score
+        if (roundScore === undefined) return
+        setRoundScores(prev => [...prev, roundScore])
         setShowScoreScreen(true)
         // Restart and slightly delay score-fill sound to avoid race with UI updates
         try { stopScoreAdd() } catch { }
         setTimeout(() => { try { startScoreAdd() } catch { } }, 60)
-    }, [gameLogic, startScoreAdd, stopScoreAdd])
+    }, [showScoreScreen, gameLogic, startScoreAdd, stopScoreAdd])
 
     const handleMapClick = useCallback((position) => {
         playEffect()
@@ -329,9 +364,8 @@ export default function Gameplay() {
         try { stopScoreAdd() } catch { }
     }, [stopScoreAdd])
 
-    const startRound = useCallback(() => {
-        if (currentRound > MAX_ROUNDS) return
-
+    // Shared by "Next round" and "Play again": pick a new location and restart the clock
+    const loadNewLocation = useCallback(() => {
         playEffect()
         const randomPoint = getRandomPoint()
         const newGoalPoint = createPosition(randomPoint.lat, randomPoint.long)
@@ -340,7 +374,24 @@ export default function Gameplay() {
         setShowScoreScreen(false)
         resetTimer(INITIAL_TIMER_SECONDS)
         findValidPanorama(newGoalPoint)
-    }, [currentRound, gameLogic, resetTimer, findValidPanorama, playEffect])
+    }, [gameLogic, resetTimer, findValidPanorama, playEffect])
+
+    const startRound = useCallback(() => {
+        setCurrentRound(prev => prev + 1)
+        loadNewLocation()
+    }, [loadNewLocation])
+
+    const handleEndGame = useCallback(() => {
+        playEffect()
+        setIsGameOver(true)
+    }, [playEffect])
+
+    const handlePlayAgain = useCallback(() => {
+        setRoundScores([])
+        setCurrentRound(1)
+        setIsGameOver(false)
+        loadNewLocation()
+    }, [loadNewLocation])
 
 
     return (
@@ -363,17 +414,26 @@ export default function Gameplay() {
                     options={{ disableDefaultUI: true }}
                 />
             )}
-            <ScoreScreen
-                show={showScoreScreen}
-                score={gameLogic.score}
-                guessInfo={gameLogic.guessInfo}
-                goalPoint={gameLogic.submittedGoal}
-                guessPoint={gameLogic.submittedGuess}
-                isLoaded={isLoaded}
-                onNextRound={startRound}
-                onScoreBarComplete={handleScoreBarComplete}
-                currentRound={currentRound}
-            />
+            {isGameOver ? (
+                <GameSummary
+                    roundScores={roundScores}
+                    onPlayAgain={handlePlayAgain}
+                />
+            ) : (
+                <ScoreScreen
+                    show={showScoreScreen}
+                    score={gameLogic.score}
+                    guessInfo={gameLogic.guessInfo}
+                    goalPoint={gameLogic.submittedGoal}
+                    guessPoint={gameLogic.submittedGuess}
+                    isLoaded={isLoaded}
+                    onNextRound={startRound}
+                    onEndGame={handleEndGame}
+                    onScoreBarComplete={handleScoreBarComplete}
+                    currentRound={currentRound}
+                    totalScore={totalScore}
+                />
+            )}
         </div>
     )
 }
