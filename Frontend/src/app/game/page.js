@@ -1,6 +1,7 @@
 "use client"
-import { useRef, useState, useEffect, useCallback } from 'react'
+import { useRef, useState, useEffect, useCallback, Suspense } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { useJsApiLoader } from "@react-google-maps/api"
 import { getRandomPoint } from "./test-scripts/randpoint.js"
 import styles from "./page.module.css"
@@ -15,6 +16,14 @@ const CAMPUS_MAP_BOUNDS = {
     south: 40.0884,
     east: -88.2095,
     west: -88.2423
+}
+
+// Play areas selectable from the lobby (?area=); "campus" is the original whole-campus game.
+// Quad and Engineering bounds are approximate boxes that sit inside the campus polygon in randpoint.js
+const AREA_BOUNDS = {
+    campus: CAMPUS_MAP_BOUNDS,
+    quad: { north: 40.1090, south: 40.1040, east: -88.2245, west: -88.2315 },
+    engineering: { north: 40.1160, south: 40.1105, east: -88.2243, west: -88.2288 }
 }
 
 const MAP_CENTER = { lat: 40.108252, lng: -88.22699 }
@@ -36,10 +45,14 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
-const MAX_DISTANCE_IN_BOUNDS = calculateDistance(
-    CAMPUS_MAP_BOUNDS.south, CAMPUS_MAP_BOUNDS.west,
-    CAMPUS_MAP_BOUNDS.north, CAMPUS_MAP_BOUNDS.east
-)
+function getMaxDistance(bounds) {
+    return calculateDistance(bounds.south, bounds.west, bounds.north, bounds.east)
+}
+
+function isInBounds(point, bounds) {
+    return point.lat >= bounds.south && point.lat <= bounds.north &&
+        point.lng >= bounds.west && point.lng <= bounds.east
+}
 
 function formatTimer(seconds) {
     const minutes = Math.floor(seconds / 60)
@@ -47,7 +60,7 @@ function formatTimer(seconds) {
     return `${minutes}:${secs}`
 }
 
-function calculateScore(distance, maxDistance = MAX_DISTANCE_IN_BOUNDS) {
+function calculateScore(distance, maxDistance) {
     console.log(maxDistance)
     const normalizedDistance = distance / maxDistance
     console.log(normalizedDistance)
@@ -75,7 +88,8 @@ function formatDistanceText(distance, hasGuess) {
         : `You didn't place a guess - 0pts!`
 }
 
-function useStreetViewPanorama(isLoaded, panoramaRef) {
+function useStreetViewPanorama(isLoaded, panoramaRef, areaKey) {
+    const bounds = AREA_BOUNDS[areaKey]
     const [goalPoint, setGoalPoint] = useState(null)
     const panoramaInstanceRef = useRef(null)
 
@@ -103,9 +117,13 @@ function useStreetViewPanorama(isLoaded, panoramaRef) {
 
         const processPanorama = ({ data }) => {
             const isGoogleStreetView = data.copyright?.indexOf("Google") >= 0
+            // Street View can snap to a panorama outside a small area, so retry (whole campus is unchecked as before)
+            const panoPoint = data.location.latLng
+            const isOutsideArea = areaKey !== "campus" &&
+                !isInBounds({ lat: panoPoint.lat(), lng: panoPoint.lng() }, bounds)
 
-            if (!isGoogleStreetView) {
-                const randomPoint = getRandomPoint()
+            if (!isGoogleStreetView || isOutsideArea) {
+                const randomPoint = getRandomPoint(bounds)
                 const newPoint = createPosition(randomPoint.lat, randomPoint.long)
                 setGoalPoint(newPoint)
                 service.getPanorama({ location: newPoint, radius: 1000 }).then(processPanorama)
@@ -138,7 +156,7 @@ function useStreetViewPanorama(isLoaded, panoramaRef) {
         }
 
         service.getPanorama({ location: initialPoint, radius: 1000 }).then(processPanorama)
-    }, [ensurePanoramaInitialized])
+    }, [ensurePanoramaInitialized, areaKey, bounds])
 
     const adjustPanoramaZoom = useCallback((delta) => {
         const panorama = panoramaInstanceRef.current
@@ -154,7 +172,7 @@ function useStreetViewPanorama(isLoaded, panoramaRef) {
         if (!isLoaded || !window.google) return
 
         ensurePanoramaInitialized()
-        const randomPoint = getRandomPoint()
+        const randomPoint = getRandomPoint(bounds)
         const point = createPosition(randomPoint.lat, randomPoint.long)
         setGoalPoint(point)
         findValidPanorama(point)
@@ -191,7 +209,7 @@ function useTimer(initialSeconds, onTimeout) {
     return { seconds, reset, formatted: formatTimer(seconds) }
 }
 
-function useGameLogic(goalPoint) {
+function useGameLogic(goalPoint, maxDistance) {
     const [userGuess, setUserGuess] = useState(DEFAULT_POSITION)
     const [submittedGuess, setSubmittedGuess] = useState(null)
     const [submittedGoal, setSubmittedGoal] = useState(null)
@@ -211,9 +229,9 @@ function useGameLogic(goalPoint) {
                 guessPosition.lat, guessPosition.lng,
                 goalPoint.lat, goalPoint.lng
             )
-            : MAX_DISTANCE_IN_BOUNDS
+            : maxDistance
 
-        const calculatedScore = calculateScore(distance)
+        const calculatedScore = calculateScore(distance, maxDistance)
         const updateInfo = async () => {
             if (auth.currentUser != null) {
                 const user = auth.currentUser 
@@ -239,7 +257,7 @@ function useGameLogic(goalPoint) {
         setGuessInfo(formatDistanceText(distance, hasGuess))
         setSubmittedGoal(goalPoint)
         setSubmittedGuess(guessPosition || DEFAULT_POSITION)
-    }, [goalPoint, userGuess])
+    }, [goalPoint, userGuess, maxDistance])
 
     const resetGuess = useCallback(() => {
         setUserGuess(DEFAULT_POSITION)
@@ -286,7 +304,18 @@ function ControlOverlay({ onZoomIn, onZoomOut }) {
 
 
 
-export default function Gameplay() {
+export default function Page() {
+    return (
+        <Suspense>
+            <Gameplay />
+        </Suspense>
+    )
+}
+
+function Gameplay() {
+    const areaParam = useSearchParams().get("area")
+    const areaKey = Object.hasOwn(AREA_BOUNDS, areaParam) ? areaParam : "campus"
+    const bounds = AREA_BOUNDS[areaKey]
     const [showScoreScreen, setShowScoreScreen] = useState(false)
     const [currentRound, setCurrentRound] = useState(1)
     const [isMapExpanded, setIsMapExpanded] = useState(false)
@@ -301,8 +330,8 @@ export default function Gameplay() {
 
     const { playEffect, startScoreAdd, stopScoreAdd } = useAudio()
 
-    const { goalPoint, findValidPanorama, zoomIn, zoomOut } = useStreetViewPanorama(isLoaded, panoramaRef)
-    const gameLogic = useGameLogic(goalPoint)
+    const { goalPoint, findValidPanorama, zoomIn, zoomOut } = useStreetViewPanorama(isLoaded, panoramaRef, areaKey)
+    const gameLogic = useGameLogic(goalPoint, getMaxDistance(bounds))
     const { seconds: timerSeconds, reset: resetTimer, formatted: timerText } = useTimer(
         INITIAL_TIMER_SECONDS,
         () => handleSubmitGuess()
@@ -333,14 +362,14 @@ export default function Gameplay() {
         if (currentRound > MAX_ROUNDS) return
 
         playEffect()
-        const randomPoint = getRandomPoint()
+        const randomPoint = getRandomPoint(bounds)
         const newGoalPoint = createPosition(randomPoint.lat, randomPoint.long)
 
         gameLogic.resetGuess()
         setShowScoreScreen(false)
         resetTimer(INITIAL_TIMER_SECONDS)
         findValidPanorama(newGoalPoint)
-    }, [currentRound, gameLogic, resetTimer, findValidPanorama, playEffect])
+    }, [currentRound, gameLogic, resetTimer, findValidPanorama, playEffect, bounds])
 
 
     return (

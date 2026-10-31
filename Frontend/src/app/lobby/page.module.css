@@ -254,3 +254,12 @@
   }
   
 }
+.areaSelect {
+  margin-bottom: 1vh;
+  padding: 0.5vh 1vw;
+  border-radius: clamp(15px, 2vw, 21px);
+  border: 1px solid #000;
+  background: #fff;
+  font-size: clamp(0.9rem, 1.2vw, 1.2em);
+  cursor: pointer;
+}
