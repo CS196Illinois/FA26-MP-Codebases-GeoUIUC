@@ -1,10 +1,13 @@
 "use client"
 import { useRef, useState, useEffect } from 'react'
+import { usePathname } from 'next/navigation'
 
 let pArr = []
 let SNOW_COLLECTING = false
 let SNOW_FALLING = true
 export default function Particles() {
+    // The snow canvas sits above everything, so during gameplay it covers the Street View and guess map
+    const isGamePage = usePathname()?.startsWith("/game")
     const [ticks, setTicks] = useState(0)
     const particleCanvas = useRef()
     const snowImgRef = useRef(null)
@@ -34,7 +37,7 @@ export default function Particles() {
     }, [ticks])
 
     if (true) { // add like a settings thing for this later maybe or we just don't use it idk
-        if (SNOW_FALLING) { // add like a settings thing for this later maybe or we just don't use it idk
+        if (SNOW_FALLING && !isGamePage) { // add like a settings thing for this later maybe or we just don't use it idk
             return (
                 <canvas
                     style={{ zIndex: 100, position: "fixed", top: 0, left: 0, pointerEvents: "none" }}
@@ -45,6 +48,8 @@ export default function Particles() {
         return (<></>)
     }
     function updateCanvas() {
+        // No canvas is rendered on pages where snow is hidden
+        if (!particleCanvas.current) return
         // console.log(ticks)
         particleCanvas.current["width"] = window.innerWidth
         particleCanvas.current["height"] = window.innerHeight
