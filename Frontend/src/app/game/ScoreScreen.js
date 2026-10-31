@@ -290,7 +290,10 @@ function getMapZoom(distance) {
     scrn.ellipse(50, 50, 25, 25, Math.PI, 0, Math.PI * 2)
     scrn.closePath()
     scrn.clip("nonzero")
-    scrn.drawImage(im, 25, 25, 50, 50)
+    // drawImage throws if the profile picture is missing or failed to load
+    if (im && im.complete && im.naturalWidth > 0) {
+        scrn.drawImage(im, 25, 25, 50, 50)
+    }
     scrn.closePath()
 
     // console.log(canvas)

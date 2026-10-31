@@ -8,13 +8,13 @@ import { onAuthStateChanged } from "firebase/auth";
 import { useState, useRef, useEffect } from "react";
 import { doc, getDoc } from 'firebase/firestore'
 
-function StartButton() {
+function StartButton({ area }) {
   const router = useRouter();
 
   return (
     <button
       className={styles.startButton}
-      onClick={() => router.push("/game")}
+      onClick={() => router.push(`/game?area=${area}`)}
     >
       <div className={styles.buttonText}>Start Game!</div>
     </button>
@@ -46,6 +46,7 @@ export default function Lobby() {
   const videoARef = useRef(null);
   const videoBRef = useRef(null);
   const [name, setName] = useState("");
+  const [area, setArea] = useState("campus");
 
   useEffect(() => {
     // Auth guard: if not signed in, redirect back to /login.
@@ -165,7 +166,16 @@ export default function Lobby() {
           <p className={styles["App-para"]}>Game Mode: Outdoor</p>
         </header>
         <div className={styles.logoContainer}>
-        <StartButton />
+        <select
+          className={styles.areaSelect}
+          value={area}
+          onChange={(e) => setArea(e.target.value)}
+        >
+          <option value="campus">Whole campus</option>
+          <option value="quad">Main Quad</option>
+          <option value="engineering">Engineering Campus</option>
+        </select>
+        <StartButton area={area} />
       </div>
       </div>
 

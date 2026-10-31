@@ -26,13 +26,17 @@ for (let i = 0; i < perimeter.length - 2; i += 2) {
 
 let boundingData = { topLongitude: -88.24238428986186, topLatitude: 40.11611769953682, bottomLongitude: -88.20952176360476, bottomLatitude: 40.08842958076448 }
 
-export function getRandomPoint() {
+// bounds is optional ({ north, south, east, west }); without it the whole campus is used
+export function getRandomPoint(bounds) {
+    const box = bounds
+        ? { topLatitude: bounds.north, bottomLatitude: bounds.south, topLongitude: bounds.west, bottomLongitude: bounds.east }
+        : boundingData
     let randomPoint
     let WARN = 0
     while (WARN < 1000) {
         randomPoint = {
-            lat: (Math.random() * (boundingData.bottomLatitude - boundingData.topLatitude)) + boundingData.topLatitude,
-            long: (Math.random() * (boundingData.topLongitude - boundingData.bottomLongitude)) + boundingData.bottomLongitude
+            lat: (Math.random() * (box.bottomLatitude - box.topLatitude)) + box.topLatitude,
+            long: (Math.random() * (box.topLongitude - box.bottomLongitude)) + box.bottomLongitude
         }
         //test point to see if it is within the polygon as described by lineSegments.
         //Draw a straight line from randomPoint to topLongitude, point's latitude.
