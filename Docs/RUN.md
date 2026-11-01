@@ -26,6 +26,7 @@ Other scripts (run from `Frontend/`):
 | `npm run build` / `npm start` | Production build / serve it |
 | `npm run lint` | Biome lint + format check |
 | `npm run format` | Biome auto-format |
+| `npm test` | Avatar marker regression tests using Node's built-in test runner |
 
 ## Configuration
 
