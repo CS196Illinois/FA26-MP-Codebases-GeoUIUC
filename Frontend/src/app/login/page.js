@@ -5,7 +5,7 @@ import styles from "./page.module.css";
 import LoginButton from "../../components/LoginButton.js";
 import { useRouter } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../../components/firebase-config";
 
 // Move videos array outside component so it doesn't recreate on every render
@@ -30,23 +30,22 @@ export default function Login() {
         // User is signed in.
         const userRef = doc(db, "users", user.uid);
 
-        // Define the template data for a new or existing user document.
-        const templateUserData = {
-          // Essential Auth data, directly from the user object
+        // Profile data from Google, refreshed on every login
+        const profileData = {
           email: user.email,
           displayName: user.displayName,
-          // profilePicture is already here, pulling from user.photoURL
           profilePicture: user.photoURL,
+          userID: user.uid, // Store the user's UID explicitly
+        };
 
-          // Application-specific fields with default "blank" values
+        // Game data defaults, only applied the first time a user signs in.
+        // Writing these on every login would wipe a returning player's scores.
+        const newUserDefaults = {
           highScore: 0,
           totalPoints: 0,
           dailyStreak: 0,
-
-          // New fields as requested:
           bio: "", // Initialize bio as an empty string
           recentScores: [0, 0, 0, 0, 0], // Array of 5 individual ints initialized to 0
-          userID: user.uid, // Store the user's UID explicitly
 
           // Timestamps for metadata:
           createdAt: user.metadata.creationTime
@@ -55,9 +54,15 @@ export default function Login() {
         };
 
         try {
-          await setDoc(userRef, templateUserData, { merge: true });
+          const userSnap = await getDoc(userRef);
+          const userData = userSnap.exists()
+            ? profileData
+            : { ...profileData, ...newUserDefaults };
+          await setDoc(userRef, userData, { merge: true });
           console.log(
-            "User document created/updated (template applied) successfully for UID:",
+            userSnap.exists()
+              ? "Existing user document updated for UID:"
+              : "New user document created for UID:",
             user.uid
           );
 
