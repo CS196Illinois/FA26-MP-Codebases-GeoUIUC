@@ -37,3 +37,10 @@
     cursor: not-allowed;
   }
 }
+
+.login-error {
+  margin-top: 12px;
+  color: #ffdddd;
+  font-size: 0.7em;
+  font-family: "Trebuchet MS", sans-serif;
+}
