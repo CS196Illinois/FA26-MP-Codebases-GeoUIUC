@@ -19,17 +19,14 @@ export const db = getFirestore(app);
 
 const provider = new GoogleAuthProvider();
 
+// Throws if sign-in fails or the popup is closed, so callers can react to it.
 export const signInWithGoogle = async () => {
-  try {
-        const result = await signInWithPopup(auth, provider);
-        const name = result.user.displayName;
-        const email = result.user.email;
-        const profilePic = result.user.photoURL;
+  const result = await signInWithPopup(auth, provider);
+  const name = result.user.displayName;
+  const email = result.user.email;
+  const profilePic = result.user.photoURL;
 
-        localStorage.setItem("name", name);
-        localStorage.setItem("email", email);
-        localStorage.setItem("profilePic", profilePic);
-    } catch (error) {
-        console.log(error);
-    }
+  localStorage.setItem("name", name);
+  localStorage.setItem("email", email);
+  localStorage.setItem("profilePic", profilePic);
 };
