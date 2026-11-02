@@ -1,9 +1,8 @@
 
 "use client"
 import { useRef, useEffect, useCallback, useMemo } from 'react'
-import { GoogleMap } from "@react-google-maps/api"
+import { GoogleMap, PolygonF } from "@react-google-maps/api"
 import styles from "./page.module.css"
-const MAP_CENTER = { lat: 40.108252, lng: -88.22699 }
 
 export default function GuessMap({
     isLoaded,
@@ -11,7 +10,8 @@ export default function GuessMap({
     onMapClick,
     isExpanded,
     onToggleExpand,
-    onSubmitGuess
+    onSubmitGuess,
+    region
 }) {
     const mapInstanceRef = useRef(null)
     const { updateMarker } = useMapMarker(mapInstanceRef)
@@ -33,9 +33,12 @@ export default function GuessMap({
 
     const handleMapLoad = useCallback((map) => {
         mapInstanceRef.current = map
-        map.setCenter(MAP_CENTER)
-        map.setZoom(16)
-    }, [])
+        map.setCenter(region.center)
+        map.setZoom(region.zoom)
+    }, [region])
+
+    // The outline of the section being played, as Google Maps { lat, lng } points
+    const regionOutline = useMemo(() => toLatLngPath(region.polygon), [region])
 
     const handleMapClick = useCallback((e) => {
         const position = createPosition(e.latLng.lat(), e.latLng.lng())
@@ -70,8 +73,8 @@ export default function GuessMap({
         <div id={styles["guessOverlay"]}>
             <GoogleMap
                 mapContainerStyle={mapContainerStyle}
-                defaultCenter={MAP_CENTER}
-                defaultZoom={16}
+                defaultCenter={region.center}
+                defaultZoom={region.zoom}
                 onClick={handleMapClick}
                 onLoad={handleMapLoad}
                 onDblClick={onToggleExpand}
@@ -80,7 +83,18 @@ export default function GuessMap({
                     disableDoubleClickZoom: true,
                     disableDefaultUI: true
                 }}
-            />
+            >
+                <PolygonF
+                    path={regionOutline}
+                    options={{
+                        strokeColor: "#cd870e",
+                        strokeOpacity: 0.9,
+                        strokeWeight: 2,
+                        fillOpacity: 0,
+                        clickable: false
+                    }}
+                />
+            </GoogleMap>
             <button style={buttonStyle} onClick={onSubmitGuess}>
                 Submit guess!
             </button>
@@ -115,6 +129,14 @@ function useMapMarker(mapInstanceRef) {
 
     return { updateMarker }
 }
+function toLatLngPath(polygon) {
+    const path = []
+    for (let i = 0; i < polygon.length; i += 2) {
+        path.push({ lat: polygon[i + 1], lng: polygon[i] })
+    }
+    return path
+}
+
 function createPosition(lat, lng) {
     return { lat, lng }
 }

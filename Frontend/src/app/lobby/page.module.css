@@ -130,6 +130,40 @@
   text-shadow: 2px 2px 8px #000;
 }
 
+.regionPicker {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 2vh;
+  padding: 0 16px;
+  max-width: 900px;
+  position: relative;
+  z-index: 3;
+}
+
+.regionOption {
+  font-family: "Baloo 2";
+  font-size: clamp(0.9rem, 1.4vw, 1.2rem);
+  font-weight: 600;
+  color: #FFF;
+  background: rgba(25, 42, 98, 0.75);
+  border: 2px solid #CD870E;
+  border-radius: 999px;
+  padding: 4px 16px;
+  cursor: pointer;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+}
+
+.regionOption:hover {
+  background: rgba(205, 135, 14, 0.4);
+}
+
+.regionOptionSelected,
+.regionOptionSelected:hover {
+  background: #CD870E;
+}
+
 .score {
   display: flex;
   align-items: center;

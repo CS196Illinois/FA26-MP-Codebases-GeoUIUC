@@ -7,17 +7,39 @@ import { auth, db } from "@/components/firebase-config";
 import { onAuthStateChanged } from "firebase/auth";
 import { useState, useRef, useEffect } from "react";
 import { doc, getDoc } from 'firebase/firestore'
+import { DEFAULT_REGION_ID, REGIONS, resolveRegionId } from "@/app/game/regions";
 
-function StartButton() {
+const REGION_STORAGE_KEY = "regionId";
+
+function StartButton({ regionId }) {
   const router = useRouter();
 
   return (
     <button
       className={styles.startButton}
-      onClick={() => router.push("/game")}
+      onClick={() => router.push(`/game?region=${regionId}`)}
     >
       <div className={styles.buttonText}>Start Game!</div>
     </button>
+  );
+}
+
+// Lets the player pick which section of campus to play on
+function RegionPicker({ regionId, onChange }) {
+  return (
+    <div className={styles.regionPicker}>
+      {Object.entries(REGIONS).map(([id, region]) => (
+        <button
+          key={id}
+          type="button"
+          aria-pressed={id === regionId}
+          className={id === regionId ? `${styles.regionOption} ${styles.regionOptionSelected}` : styles.regionOption}
+          onClick={() => onChange(id)}
+        >
+          {region.name}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -46,6 +68,7 @@ export default function Lobby() {
   const videoARef = useRef(null);
   const videoBRef = useRef(null);
   const [name, setName] = useState("");
+  const [regionId, setRegionId] = useState(DEFAULT_REGION_ID);
 
   useEffect(() => {
     // Auth guard: if not signed in, redirect back to /login.
@@ -66,6 +89,20 @@ export default function Lobby() {
   useEffect(() => {
       setProfilePic(localStorage.getItem("profilePic"));
     }, []);
+
+  // Remember the last section the player picked
+  useEffect(() => {
+    try {
+      setRegionId(resolveRegionId(localStorage.getItem(REGION_STORAGE_KEY)));
+    } catch {}
+  }, []);
+
+  const handleRegionChange = (id) => {
+    setRegionId(id);
+    try {
+      localStorage.setItem(REGION_STORAGE_KEY, id);
+    } catch {}
+  };
 
   useEffect(() => {
     const currentVideo = active ? videoARef.current : videoBRef.current;
@@ -163,9 +200,10 @@ export default function Lobby() {
           />
 
           <p className={styles["App-para"]}>Game Mode: Outdoor</p>
+          <RegionPicker regionId={regionId} onChange={handleRegionChange} />
         </header>
         <div className={styles.logoContainer}>
-        <StartButton />
+        <StartButton regionId={regionId} />
       </div>
       </div>
 
