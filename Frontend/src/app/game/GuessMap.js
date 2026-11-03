@@ -1,9 +1,11 @@
 
 "use client"
-import { useRef, useEffect, useCallback, useMemo } from 'react'
 import { GoogleMap } from "@react-google-maps/api"
+import { useCallback, useEffect, useRef } from 'react'
 import styles from "./page.module.css"
+
 const MAP_CENTER = { lat: 40.108252, lng: -88.22699 }
+const MAP_CONTAINER_STYLE = { width: "100%", height: "100%" }
 
 export default function GuessMap({
     isLoaded,
@@ -15,21 +17,7 @@ export default function GuessMap({
 }) {
     const mapInstanceRef = useRef(null)
     const { updateMarker } = useMapMarker(mapInstanceRef)
-
-    const mapContainerStyle = useMemo(() => ({
-        width: isExpanded ? '600px' : '400px',
-        height: isExpanded ? '600px' : '400px',
-        marginLeft: "200px",
-        marginBottom: "15px",
-        transition: 'width 0.3s ease, height 0.3s ease'
-    }), [isExpanded])
-
-    const buttonStyle = useMemo(() => ({
-        width: isExpanded ? '600px' : '400px',
-        marginLeft: '200px',
-        float: "right",
-        transition: "0.3s ease"
-    }), [isExpanded])
+    const hasGuess = !isDefaultPosition(userGuess)
 
     const handleMapLoad = useCallback((map) => {
         mapInstanceRef.current = map
@@ -51,39 +39,72 @@ export default function GuessMap({
 
     useEffect(() => {
         if (mapInstanceRef.current) {
-            setTimeout(() => {
+            const transitionDuration = isExpanded ? 350 : 300
+            const timeoutId = window.setTimeout(() => {
                 window.google?.maps?.event?.trigger(mapInstanceRef.current, 'resize')
-            }, 50)
+            }, transitionDuration)
+
+            return () => window.clearTimeout(timeoutId)
         }
     }, [isExpanded])
 
     if (!isLoaded) {
         return (
-            <div id={styles["guessOverlay"]}>
-                <div>Loading map...</div>
-                <button onClick={onSubmitGuess}>Submit guess!</button>
+            <div id={styles.guessOverlay}>
+                <div className={styles.guessPanel}>
+                    <p className={styles.guessPrompt}>Place your guess</p>
+                    <p className={styles.guessStatus}>Loading map...</p>
+                    <button className={styles.guessSubmit} type="button" disabled>
+                        Select a location first
+                    </button>
+                </div>
             </div>
         )
     }
 
     return (
-        <div id={styles["guessOverlay"]}>
-            <GoogleMap
-                mapContainerStyle={mapContainerStyle}
-                defaultCenter={MAP_CENTER}
-                defaultZoom={16}
-                onClick={handleMapClick}
-                onLoad={handleMapLoad}
-                onDblClick={onToggleExpand}
-                options={{
-                    streetViewControl: false,
-                    disableDoubleClickZoom: true,
-                    disableDefaultUI: true
-                }}
-            />
-            <button style={buttonStyle} onClick={onSubmitGuess}>
-                Submit guess!
-            </button>
+        <div id={styles.guessOverlay}>
+            <div className={`${styles.guessPanel} ${isExpanded ? styles.guessPanelExpanded : ""}`}>
+                <div className={styles.guessPanelHeader}>
+                    <div>
+                        <p className={styles.guessPrompt}>Place your guess</p>
+                        <p className={styles.guessStatus} aria-live="polite">
+                            {hasGuess ? "Location selected" : "Select a campus location on the map"}
+                        </p>
+                    </div>
+                    <button
+                        className={styles.guessExpandButton}
+                        type="button"
+                        onClick={onToggleExpand}
+                        aria-expanded={isExpanded}
+                    >
+                        {isExpanded ? "Collapse map" : "Expand map"}
+                    </button>
+                </div>
+                <div className={styles.guessMapContainer}>
+                    <GoogleMap
+                        mapContainerStyle={MAP_CONTAINER_STYLE}
+                        defaultCenter={MAP_CENTER}
+                        defaultZoom={16}
+                        onClick={handleMapClick}
+                        onLoad={handleMapLoad}
+                        onDblClick={onToggleExpand}
+                        options={{
+                            streetViewControl: false,
+                            disableDoubleClickZoom: true,
+                            disableDefaultUI: true
+                        }}
+                    />
+                </div>
+                <button
+                    className={styles.guessSubmit}
+                    type="button"
+                    onClick={onSubmitGuess}
+                    disabled={!hasGuess}
+                >
+                    {hasGuess ? "Submit guess" : "Select a location first"}
+                </button>
+            </div>
         </div>
     )
 }

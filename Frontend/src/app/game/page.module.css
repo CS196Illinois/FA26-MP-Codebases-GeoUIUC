@@ -9,7 +9,7 @@
 
 .umbrella,
 .overlay {
-    font-family: "Baloo 2";
+    font-family: "Baloo 2", sans-serif;
     height: 100vh;
     padding: 0px;
 }
@@ -94,11 +94,84 @@ body {
     position: absolute;
     bottom: 0;
     z-index: 2;
+    right: 0;
+    margin: 1rem;
+}
+
+.guessPanel {
+    width: min(26rem, calc(100vw - 2rem));
+    padding: 0.75rem;
+    border-radius: 14px;
+    background-color: rgba(19, 41, 75, 0.96);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    transition: width 0.3s ease;
+}
+
+.guessPanelExpanded {
+    width: min(42rem, calc(100vw - 2rem));
+}
+
+.guessPanelHeader {
     display: flex;
-    flex-direction: column;
-    right: 0px;
-    margin: 15px;
-    margin-bottom: 10px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.65rem;
+}
+
+.guessPrompt,
+.guessStatus {
+    margin: 0;
+}
+
+.guessPrompt {
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+.guessStatus {
+    margin-top: 0.15rem;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.78);
+}
+
+.guessMapContainer {
+    width: 100%;
+    height: 20rem;
+    overflow: hidden;
+    border-radius: 10px;
+    transition: height 0.3s ease;
+}
+
+.guessPanelExpanded .guessMapContainer {
+    height: min(36rem, calc(100vh - 12rem));
+}
+
+.guessExpandButton {
+    flex-shrink: 0;
+    padding: 0.45rem 0.65rem;
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    border-radius: 8px;
+    background-color: transparent;
+    color: white;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.guessExpandButton:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+}
+
+.guessSubmit {
+    width: 100%;
+    margin-top: 0.65rem;
+    cursor: pointer;
+}
+
+.guessSubmit:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
 }
 
 #controlsOverlay {
@@ -139,9 +212,9 @@ body {
 }
 
 #scoreScreen button,
-#guessOverlay button {
+.guessSubmit {
     height: 40px;
-    font-family: "baloo 2";
+    font-family: "baloo 2", sans-serif;
     background-color: var(--burntorange);
     border-radius: 10px;
     border: none;
@@ -155,8 +228,27 @@ body {
 }
 
 #scoreScreen button:hover,
-#guessOverlay button:hover {
+.guessSubmit:hover:not(:disabled) {
     background-color: var(--burntorangeHover);
+}
+
+@media (max-width: 700px) {
+    #guessOverlay {
+        margin: 0.75rem;
+    }
+
+    .guessPanel,
+    .guessPanelExpanded {
+        width: calc(100vw - 1.5rem);
+    }
+
+    .guessMapContainer {
+        height: 15rem;
+    }
+
+    .guessPanelExpanded .guessMapContainer {
+        height: min(23rem, calc(100vh - 12rem));
+    }
 }
 
 
