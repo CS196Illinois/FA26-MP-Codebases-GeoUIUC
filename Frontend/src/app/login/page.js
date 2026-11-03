@@ -5,7 +5,7 @@ import styles from "./page.module.css";
 import LoginButton from "../../components/LoginButton.js";
 import { useRouter } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../../components/firebase-config";
 
 // Move videos array outside component so it doesn't recreate on every render
@@ -54,10 +54,24 @@ export default function Login() {
             : null,
         };
 
+        // Fields from the Google account, safe to refresh on every login
+        const profileData = {
+          email: user.email,
+          displayName: user.displayName,
+          profilePicture: user.photoURL,
+          userID: user.uid,
+        };
+
         try {
-          await setDoc(userRef, templateUserData, { merge: true });
+          // Only new players get the template; returning players keep their stats
+          const existing = await getDoc(userRef);
+          if (existing.exists()) {
+            await setDoc(userRef, profileData, { merge: true });
+          } else {
+            await setDoc(userRef, templateUserData);
+          }
           console.log(
-            "User document created/updated (template applied) successfully for UID:",
+            "User document created/updated successfully for UID:",
             user.uid
           );
 

@@ -49,10 +49,13 @@ export default function Lobby() {
 
   useEffect(() => {
     // Auth guard: if not signed in, redirect back to /login.
-    const unsub = onAuthStateChanged(auth, (user) => {
+    // Also loads the high score here, once Firebase knows who is signed in
+    const unsub = onAuthStateChanged(auth, async (user) => {
       if (!user) {
         try { router.replace("/login"); } catch {}
+        return;
       }
+      setDocSnap(await getDoc(doc(db, "users", user.uid)));
     });
     return () => unsub();
   }, [router]);
@@ -103,18 +106,6 @@ export default function Lobby() {
       currentVideo.removeEventListener("ended", handleEnded);
     };
   }, [index, active]); // Only index and active - NOT videos
-
-  useEffect(() => {
-      const user = auth.currentUser 
-    if (user) {
-      const docRef = doc(db, "users", user.uid)
-      const updateSnap = async () => {
-      const docSnap = await getDoc(docRef);
-        setDocSnap(docSnap)
-      }
-      updateSnap()
-    }
-  }, []);
 
 
   return (
