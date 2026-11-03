@@ -8,7 +8,8 @@ import Link from "next/link";
 import React, { useState, useEffect } from 'react';
 import SignOut from "@/components/SignoutButton";
 import DeleteAccount from "@/components/DeleteAccountButton";
-import {auth, db} from "../../components/firebase-config"
+import { db } from "../../components/firebase-config"
+import useAuthUser from "@/components/useAuthUser"
 import { doc, getDoc } from 'firebase/firestore'
 
 export default function Profile() {
@@ -16,19 +17,24 @@ export default function Profile() {
   const [name, setName] = useState();
   const [email, setEmail] = useState();
   const [docSnap, setDocSnap] = useState();
+  const { user } = useAuthUser();
 
   useEffect(() => {
     setProfilePic(localStorage.getItem("profilePic"));
     setName(localStorage.getItem("name"));
     setEmail(localStorage.getItem("email"));
-    const user = auth.currentUser 
+  }, []);
+
+  useEffect(() => {
+    // Wait until Firebase has restored the session before loading scores
+    if (!user) return
     const docRef = doc(db, "users", user.uid)
     const updateSnap = async () => {
       const docSnap = await getDoc(docRef);
       setDocSnap(docSnap)
     }
     updateSnap()
-  }, []);
+  }, [user]);
 
 
   return (

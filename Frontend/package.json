@@ -7,7 +7,8 @@
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "biome check",
-    "format": "biome format --write"
+    "format": "biome format --write",
+    "test": "vitest run"
   },
   "dependencies": {
     "@googlemaps/markerclusterer": "^2.6.2",
@@ -21,6 +22,7 @@
     "react-router-dom": "^7.9.4"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.2.0"
+    "@biomejs/biome": "2.2.0",
+    "vitest": "^3.2.4"
   }
 }
