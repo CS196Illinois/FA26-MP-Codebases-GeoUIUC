@@ -37,7 +37,7 @@ export default function Particles() {
         if (SNOW_FALLING) { // add like a settings thing for this later maybe or we just don't use it idk
             return (
                 <canvas
-                    style={{ zIndex: 100, position: "fixed", top: 0, left: 0, pointerEvents: "none" }}
+                    style={{ zIndex: 1, position: "fixed", top: 0, left: 0, pointerEvents: "none" }}
                     ref={particleCanvas}
                 />
             )
@@ -58,7 +58,7 @@ export default function Particles() {
         scrn.clearRect(0, 0, window.innerWidth, window.innerHeight)
         // scrn.drawImage(im, 0, 0, 15, 15)
         // Read desired particle count from localStorage; prefer discrete snowLevel
-        let desired = 800
+        let desired = 0
         try {
             const lvl = parseInt(localStorage.getItem("snowLevel"), 10)
             if (!Number.isNaN(lvl)) {
