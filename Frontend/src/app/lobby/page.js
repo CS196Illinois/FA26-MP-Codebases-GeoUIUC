@@ -3,8 +3,8 @@
 import styles from "./page.module.css";
 import { useRouter } from "next/navigation";
 import signInWithGoogle  from "@/components/firebase-config";
-import { auth, db } from "@/components/firebase-config";
-import { onAuthStateChanged } from "firebase/auth";
+import { db } from "@/components/firebase-config";
+import useAuthUser from "@/components/useAuthUser";
 import { useState, useRef, useEffect } from "react";
 import { doc, getDoc } from 'firebase/firestore'
 
@@ -47,15 +47,8 @@ export default function Lobby() {
   const videoBRef = useRef(null);
   const [name, setName] = useState("");
 
-  useEffect(() => {
-    // Auth guard: if not signed in, redirect back to /login.
-    const unsub = onAuthStateChanged(auth, (user) => {
-      if (!user) {
-        try { router.replace("/login"); } catch {}
-      }
-    });
-    return () => unsub();
-  }, [router]);
+  // Auth guard: if not signed in, redirect back to /login.
+  const { user } = useAuthUser();
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -105,7 +98,6 @@ export default function Lobby() {
   }, [index, active]); // Only index and active - NOT videos
 
   useEffect(() => {
-      const user = auth.currentUser 
     if (user) {
       const docRef = doc(db, "users", user.uid)
       const updateSnap = async () => {
@@ -114,7 +106,7 @@ export default function Lobby() {
       }
       updateSnap()
     }
-  }, []);
+  }, [user]);
 
 
   return (

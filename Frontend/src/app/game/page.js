@@ -7,7 +7,8 @@ import styles from "./page.module.css"
 import { useAudio } from '@/components/AudioProvider'
 import ScoreScreen from './ScoreScreen.js'
 import GuessMap from './GuessMap.js'
-import { auth, db} from '@/components/firebase-config.js'
+import { db } from '@/components/firebase-config.js'
+import useAuthUser from '@/components/useAuthUser'
 import { doc, updateDoc, increment, getDoc } from 'firebase/firestore'
 
 const CAMPUS_MAP_BOUNDS = {
@@ -191,7 +192,7 @@ function useTimer(initialSeconds, onTimeout) {
     return { seconds, reset, formatted: formatTimer(seconds) }
 }
 
-function useGameLogic(goalPoint) {
+function useGameLogic(goalPoint, user) {
     const [userGuess, setUserGuess] = useState(DEFAULT_POSITION)
     const [submittedGuess, setSubmittedGuess] = useState(null)
     const [submittedGoal, setSubmittedGoal] = useState(null)
@@ -215,8 +216,7 @@ function useGameLogic(goalPoint) {
 
         const calculatedScore = calculateScore(distance)
         const updateInfo = async () => {
-            if (auth.currentUser != null) {
-                const user = auth.currentUser 
+            if (user != null) {
                 const docRef = doc(db, "users", user.uid)
                 const docSnap = await getDoc(docRef);
                 try {
@@ -239,7 +239,7 @@ function useGameLogic(goalPoint) {
         setGuessInfo(formatDistanceText(distance, hasGuess))
         setSubmittedGoal(goalPoint)
         setSubmittedGuess(guessPosition || DEFAULT_POSITION)
-    }, [goalPoint, userGuess])
+    }, [goalPoint, userGuess, user])
 
     const resetGuess = useCallback(() => {
         setUserGuess(DEFAULT_POSITION)
@@ -302,7 +302,8 @@ export default function Gameplay() {
     const { playEffect, startScoreAdd, stopScoreAdd } = useAudio()
 
     const { goalPoint, findValidPanorama, zoomIn, zoomOut } = useStreetViewPanorama(isLoaded, panoramaRef)
-    const gameLogic = useGameLogic(goalPoint)
+    const { user } = useAuthUser()
+    const gameLogic = useGameLogic(goalPoint, user)
     const { seconds: timerSeconds, reset: resetTimer, formatted: timerText } = useTimer(
         INITIAL_TIMER_SECONDS,
         () => handleSubmitGuess()
