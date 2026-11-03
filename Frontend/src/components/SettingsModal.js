@@ -40,7 +40,7 @@ export default function SettingsModal() {
   const [musicPct, setMusicPct] = useState(Math.round((musicVolume ?? 0) * 100));
   const [effectsPct, setEffectsPct] = useState(Math.round((effectsVolume ?? 0) * 100));
   // Snow intensity level (0=Off, 1=Light, 2=Normal, 3=Heavy, 4=Blizzard)
-  const [snowLevel, setSnowLevel] = useState(2);
+  const [snowLevel, setSnowLevel] = useState(0);
 
   const router = useRouter();
   const pathname = usePathname();
@@ -102,12 +102,12 @@ export default function SettingsModal() {
           const toLevel = (c) => (c <= 0 ? 0 : c <= 200 ? 1 : c <= 600 ? 2 : c <= 1200 ? 3 : 4);
           setSnowLevel(toLevel(count));
         } else {
-          setSnowLevel(2);
+          setSnowLevel(0);
         }
       } catch {
         setMusicPct(Math.round((musicVolume ?? 0) * 100));
         setEffectsPct(Math.round((effectsVolume ?? 0) * 100));
-        setSnowLevel(2);
+        setSnowLevel(0);
       }
     }
   }, [open, ensureAudio, startMusic, musicVolume, effectsVolume]);
